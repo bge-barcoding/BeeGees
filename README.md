@@ -156,7 +156,7 @@ min_pident: Minimum percent identity (pident) threshold to be considered for ret
 min_length: Minimum length of alignment to be considered for returned BLAST hits. Any hit with a length below this value is removed
 
 ## Resource allocation for each rule
-rules: Each of the main rules in the config.yaml can specify the number of requested threads and memory resources (in Mb) for every job (e.g. specifying 4 threads and 4G memory for fastp_pe_merge would allocate those resources for every 'fastp_pe_merge' job). Rules have dynamic memory scaling upon retry (mem_mb * retry #).
+rules: Each of the main rules in the config.yaml can specify the number of requested threads and memory resources (in Mb) for every job (e.g. specifying 4 threads and 4G memory for fastp_pe_merge would allocate those resources for every 'fastp_pe_merge' job). Rules have dynamic memory scaling upon retry (mem_mb * retry #). Make sure to change 'PARTITION' for MitoGeneExtractor, structural_validation, and taxonomic_validation rules. 
 ```
 **Currently, BeeGees barcode validaition only works for COI-5P and rbcL barcodes due to HMM and BLAST database availability (to be expanded with future updates).**
 
