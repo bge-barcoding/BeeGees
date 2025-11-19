@@ -8,16 +8,6 @@ structural analysis (gaps, ambiguous bases, sequence length) with functional ana
 (reading frame determination, stop codon counting, protein translation) to ensure selected 
 barcodes are suitable for species identification and phylogenetic studies.
 
-FEATURES
-=============
-• Multi-file batch processing with progress tracking
-• HMM-based barcode region extraction using nhmmer alignment
-• Quality assessment across multiple metrics (see below) and selection of the best barcode sequence
-• Automated reading frame analysis and genetic code translation
-• CSV reporting with all quality metrics
-• Robust gap and ambiguous base handling
-• Automatic N-trimming and sequence formatting
-
 PROCESS
 =============
 1. Input Processing:
@@ -26,23 +16,28 @@ PROCESS
    - Validate sequence integrity and format
 2. Full Sequence Analysis:
    - Calculate structural metrics (length, gaps, ambiguous bases)
-   - Determine longest continuous high-quality barcode regions
+   - Determine longest continuous stretch without gaps or N's
 3. Barcode Extraction (nhmmer-based):
-   - Remove tilde characters (~) representing missing gene regions
-   - Replace gap characters (-) with N to maintain structure
-   - Align sequences against COI-5P HMM profile using nhmmer
+   - Remove tilde characters (~) representing missing gene regions (deleted and sequence 'stitched' together)
+   - Store sequence state for counting original N's (barcode_ambiguous_bases_original)
+   - Replace gap characters (-) with N's to prepare for nhmmer alignment
+   - Align N-padded sequences against COI-5P HMM profile using nhmmer
    - Construct barcode sequences in HMM coordinate space
-   - Trim leading/trailing Ns while preserving internal structure
+   - Replace HMM coordinate space gaps (-) with N characters
+   - Trim leading/trailing Ns while preserving internal Ns
 4. Translation Analysis:
    - Analyse all three possible reading frames (0, 1, 2)
+   - Extract complete codons (excluding codons containing gaps or N's)
    - Translate sequences using specified genetic code table
-   - Count stop codons in each frame
-   - Select optimal reading frame with zero stop codons
+   - Count internal stop codons in each frame (excluding natural terminal stop)
+   - Select optimal reading frame with fewest stop codons
 5. Quality Assessment:
-   - Select best representative for each process ID (see below)
+   - Rank sequences using barcode and full sequence quality criteria
+   - Apply quality filters (no original N's, no stop codons, sufficient base count, acceptable ambiguity)
+   - Select best representative for each process ID based on highest barcode_base_count
 6. Output Generation:
-   - Write high-quality full sequences to FASTA
-   - Write corresponding barcode regions to separate FASTA
+   - Write high-quality full sequences to FASTA (with gaps/tildes removed and converted to N)
+   - Write corresponding barcode regions to separate FASTA (HMM-aligned and processed)
    - Generate comprehensive CSV report with all metrics
 
 
@@ -51,12 +46,22 @@ SELECTION
 For each unique process ID, a sequence must pass ALL of these filters to be written to the barcode output file:
 - barcode_ambiguous_bases_original == 0 (no original N's before processing)
 - stop_codons == 0 (valid protein-coding sequence)
-- barcode_base_count > 200 (sufficient actual nucleotides)
+- reading_frame >= 0 (valid reading frame identified)
+- barcode_base_count > 300 (sufficient actual nucleotides)
 - barcode_ambiguous_bases < 30% of barcode_base_count (acceptable quality after processing)
 
 Selection Criterion:
 - Among qualifying sequences: select the one with highest barcode_base_count
 - This prioritises actual nucleotide content over total length
+
+DISABLE SELECTION MODE
+======================
+When --disable-selection flag is used:
+- CSV output is still generated with all metrics and rankings
+- Best-per-process selection is NOT performed
+- output_fasta and output_barcode files are NOT created
+- A new file 'output_barcode_all_passing.fasta' is automatically created containing ALL barcode 
+  sequences that pass the four quality criteria (multiple sequences per process_id allowed)
 
 RANKING CRITERIA
 ================
@@ -99,8 +104,8 @@ Rank 3: Other quality issues
 INPUTS
 ================
 --output-csv/-o: Path where the analysis results CSV file will be saved
---output-fasta/-of: Path where the best full sequences FASTA file will be saved
---output-barcode/-ob: Path where the best barcode sequences FASTA file will be saved
+--output-fasta/-of: Path where the best full sequences FASTA file will be saved (not used with --disable-selection)
+--output-barcode/-ob: Path where the best barcode sequences FASTA file will be saved (not used with --disable-selection)
 --input/-i: One or more input FASTA files to analyse (space-separated)
 --hmm: Path to HMM profile file for nhmmer alignment
 
@@ -108,13 +113,20 @@ Optional:
 --code/-c: Genetic code table for translation (default: 1 for standard genetic code)
 --log-file LOG_FILE: Specify a custom path for the log file (default: creates timestamped log)
 --verbose, -v: Enable detailed debug logging
+--disable-selection: Skip best-per-process selection and output all passing sequences instead
 
 OUTPUTS
 ================
+Default mode:
 1. CSV report: Contains detailed metrics including translation analysis for all sequences
 2. Best sequences FASTA: Contains the highest quality full sequences (one per process_id)
 3. Best barcode FASTA: Contains the highest quality barcode regions (one per process_id)
 4. Log file: Records the analysis process, translation details, warnings, and errors
+
+With --disable-selection:
+1. CSV report: Contains detailed metrics including translation analysis for all sequences
+2. All passing barcode FASTA: Contains ALL barcode sequences meeting quality criteria
+3. Log file: Records the analysis process, translation details, warnings, and errors
 
 DEPENDENIES
 ================
@@ -124,19 +136,42 @@ DEPENDENIES
 
 CSV COLUMNS
 ================
-- file, seq_id, process_id, parameters: Sequence identification
-- length, leading_gaps, trailing_gaps, internal_gaps: Full sequence structure
-- ambiguous_bases, longest_stretch: Full sequence quality metrics
-- barcode_length, barcode_ambiguous_bases_original: Original barcode metrics
-- barcode_ambiguous_bases, barcode_base_count: Processed barcode metrics
-- reading_frame, stop_codons: Translation analysis results
-- barcode_rank, full_rank: Quality rankings
-- best_sequence, selected_full_fasta, selected_barcode_fasta: Selection flags
+Sequence Identification:
+- file: Source FASTA file path
+- seq_id: Original sequence identifier from FASTA header
+- process_id: Extracted process identifier (before parameter suffix)
+- parameters: Extracted parameter suffix (e.g., r_1, r_2)
+Full Sequence Structure:
+- length: Total sequence length including gaps
+- leading_gaps: Number of gap characters at sequence start
+- trailing_gaps: Number of gap characters at sequence end
+- internal_gaps: Number of gap characters within sequence (excluding leading/trailing)
+- ambiguous_bases: Count of N characters in full sequence
+- longest_stretch: Longest continuous stretch without gaps or N's in full sequence
+Barcode Metrics (Original):
+- barcode_length: Length of extracted barcode after HMM alignment and trimming
+- barcode_ambiguous_bases_original: Count of N's present BEFORE HMM processing (after tilde removal)
+  Represents true sequence quality issues (original ambiguous bases)
+- barcode_ambiguous_bases: Count of all N's in final barcode sequence
+  Includes: original N's + gaps converted to N's (from input sequence and HMM coordinate space)
+  Represents both sequence quality issues and structural features
+- barcode_base_count: Count of actual nucleotides (A, C, G, T) in barcode
+  Calculated as: barcode_length - barcode_ambiguous_bases
+Translation Analysis:
+- reading_frame: Optimal reading frame (0, 1, or 2) with fewest stop codons
+- stop_codons: Number of internal stop codons in optimal reading frame
+Quality Rankings:
+- barcode_rank: Quality rank 1-6 (lower is better) based on original N's, stop codons, and base count
+- full_rank: Quality rank 1-3 (lower is better) based on ambiguous bases in full sequence
+Selection Flags:
+- best_sequence: 'yes' if selected as best for this process_id, 'no' otherwise
+- selected_full_fasta: 'yes' if written to full sequence output file, 'no' otherwise
+- selected_barcode_fasta: 'yes' if written to barcode output file, 'no' otherwise
 
 AUTHORS 
 ================
-Created by Dan Parsons & Ben Prioce @ NHMUK for the BGE consotrium
-Version: 2.3
+Created by Dan Parsons & Ben Price @ NHMUK for the BGE consotrium
+Version: 2.4
 License: MIT
 """
 
@@ -194,7 +229,7 @@ def setup_logging(log_file=None):
     )
 
 
-def validate_files(input_files, output_csv, output_fasta, hmm_file):
+def validate_files(input_files, output_csv, output_fasta, output_barcode, hmm_file, disable_selection):
     # Check input files exist
     for file in input_files:
         if not os.path.exists(file):
@@ -205,9 +240,17 @@ def validate_files(input_files, output_csv, output_fasta, hmm_file):
     if not os.path.exists(hmm_file):
         logging.error(f"HMM profile file does not exist: {hmm_file}")
         return False
+    
+    # Prepare list of output files to check
+    output_files = [output_csv]
+    if not disable_selection:
+        if output_fasta:
+            output_files.append(output_fasta)
+        if output_barcode:
+            output_files.append(output_barcode)
         
     # Check output directories exist, or create them
-    for output_file in [output_csv, output_fasta]:
+    for output_file in output_files:
         output_dir = os.path.dirname(output_file)
         if output_dir and not os.path.exists(output_dir):
             try:
@@ -218,13 +261,12 @@ def validate_files(input_files, output_csv, output_fasta, hmm_file):
                 return False
                 
     # Check output files don't already exist, if so overwrite
-    for output_file in [output_csv, output_fasta]:
+    for output_file in output_files:
         if os.path.exists(output_file):
             logging.warning(f"Output file already exists and will be overwritten: {output_file}")
             
     return True
-
-
+	
 def trim_n_characters(sequence):
     # First trim leading N's
     start = 0
@@ -463,8 +505,7 @@ def trim_sequence_ends(sequence):
     logging.debug(f"Removed from end: {len(sequence) - end} characters")
     
     return trimmed
-
-
+	
 def align_sequence_with_nhmmer(record, hmm_file, hmm_length):
     """
     Process sequence by:
@@ -611,11 +652,11 @@ def calculate_full_rank(ambiguous_bases):
 
 def passes_quality_criteria(result):
     # Basic structural validation
-    if result['barcode_ambiguous_bases_original'] != 0 or result['stop_codons'] != 0:
+    if result['barcode_ambiguous_bases_original'] != 0 or result['stop_codons'] != 0 or result['reading_frame'] < 0:
         return False
     
     # Additional quality criteria
-    if result['barcode_base_count'] <= 200:
+    if result['barcode_base_count'] <= 300:
         return False
     
     # Check if barcode_ambiguous_bases < 30% of barcode_base_count
@@ -731,7 +772,7 @@ def format_barcode_gaps(sequence):
 
 def format_sequence_id(process_id, parameters):
     return f"{process_id}_{parameters}" if parameters else process_id
-    
+	
 def analyse_fasta(file_path, hmm_file, hmm_length, trans_table):
     try:
         # Initialise dictionaries
@@ -913,7 +954,7 @@ def analyse_fasta(file_path, hmm_file, hmm_length, trans_table):
     except Exception as e:
         logging.error(f"Error analysing file {file_path}: {str(e)}")
         return {}
-        
+		
 def write_best_sequences(best_sequences, output_fasta, output_barcode_fasta):
     try:
         selected_full_records = []
@@ -979,6 +1020,52 @@ def write_best_sequences(best_sequences, output_fasta, output_barcode_fasta):
         raise
 
 
+def write_all_passing_sequences(all_results, output_csv_path):
+    """
+    Write all sequences that pass quality criteria to a barcode FASTA file.
+    This is used when --disable-selection is enabled.
+    """
+    try:
+        # Derive output filename from CSV path
+        csv_dir = os.path.dirname(output_csv_path)
+        output_file = os.path.join(csv_dir, 'output_barcode_all_passing.fasta')
+        
+        passing_barcode_records = []
+        
+        for result in all_results:
+            # Check if sequence passes quality criteria
+            if passes_quality_criteria(result):
+                # Check if we have an aligned barcode record
+                if result['aligned_barcode_record']:
+                    aligned_barcode_record = result['aligned_barcode_record']
+                    
+                    barcode_seq_record = format_barcode_sequence(aligned_barcode_record)
+                    if barcode_seq_record:
+                        new_id = format_sequence_id(result['process_id'], result['parameters'])
+                        barcode_seq_record.id = new_id
+                        barcode_seq_record.description = ""
+                        passing_barcode_records.append(barcode_seq_record)
+                        
+                        logging.debug(f"Including passing sequence {result['seq_id']} from {result['file']} "
+                                    f"(process_id: {result['process_id']}, base_count: {result['barcode_base_count']})")
+        
+        # Write all passing sequences to output file without line breaks
+        if passing_barcode_records:
+            with open(output_file, 'w') as f:
+                for record in passing_barcode_records:
+                    f.write(f">{record.id}\n{str(record.seq)}\n")
+            
+            logging.info(f"Wrote {len(passing_barcode_records)} passing sequences to {output_file}")
+        else:
+            logging.warning("No sequences passed quality criteria for output")
+        
+        return output_file, len(passing_barcode_records)
+        
+    except Exception as e:
+        logging.error(f"Error writing all passing sequences: {str(e)}")
+        raise
+
+
 def group_sequences_by_process(all_results):
     process_groups = defaultdict(list)
     
@@ -1004,7 +1091,7 @@ def select_best_sequences_for_all_processes(process_groups):
             # Log warning for processes with no qualifying sequences
             processes_with_no_qualifying_sequences.append(process_id)
             logging.warning(f"Process {process_id}: No sequences passed quality criteria "
-                          f"(requires: no original N's, no stop codons, >200 base count, <30% ambiguous bases)")
+                          f"(requires: no 'original' N's, no stop codons, valid reading frame, > 300 base count, < 30% ambiguous bases)")
     
     if processes_with_no_qualifying_sequences:
         logging.warning(f"Total processes with no qualifying sequences: {len(processes_with_no_qualifying_sequences)}")
@@ -1041,6 +1128,20 @@ def annotate_results_with_selection(all_results, best_sequences, selection_recor
             result['selected_barcode_fasta'] = 'no'
 
 
+def annotate_results_without_selection(all_results):
+    """
+    Annotate all results when selection is disabled.
+    Sets all selection flags to 'no'.
+    
+    Parameters:
+        all_results (list): List of all sequence results
+    """
+    for result in all_results:
+        result['best_sequence'] = 'no'
+        result['selected_full_fasta'] = 'no'
+        result['selected_barcode_fasta'] = 'no'
+
+
 def clean_results_for_csv_output(all_results):
     """
     Remove sequence record objects from results before CSV output.
@@ -1052,24 +1153,32 @@ def clean_results_for_csv_output(all_results):
         # Remove sequence records after FASTA files are written
         result.pop('sequence_record', None)
         result.pop('aligned_barcode_record', None)
-        
+		
 def main():
     # Arg parser
     parser = argparse.ArgumentParser(description='Analyse FASTA files and select best COI-5P sequences using nhmmer-based barcode extraction.')
     
     # Required arguments with flags
     parser.add_argument('--output-csv', '-o', required=True, help='Path to output CSV file')
-    parser.add_argument('--output-fasta', '-of', required=True, help='Path to output FASTA file for best sequences')
-    parser.add_argument('--output-barcode', '-ob', required=True, help='Path to output FASTA file for barcode regions')
     parser.add_argument('--input', '-i', required=True, nargs='+', help='Input FASTA files to analyse')
     parser.add_argument('--hmm', required=True, help='Path to HMM profile file for nhmmer alignment')
+    
+    # Conditionally required arguments (required only when --disable-selection is NOT used)
+    parser.add_argument('--output-fasta', '-of', help='Path to output FASTA file for best sequences (not used with --disable-selection)')
+    parser.add_argument('--output-barcode', '-ob', help='Path to output FASTA file for barcode regions (not used with --disable-selection)')
     
     # Optional arguments
     parser.add_argument('--code', '-c', type=int, default=1, help='Genetic code table for translation (default: 1 for standard code)')
     parser.add_argument('--log-file', help='Path to log file (optional)')
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose output')
+    parser.add_argument('--disable-selection', action='store_true', help='Skip best-per-process selection and output all passing sequences instead')
     
     args = parser.parse_args()
+    
+    # Validate conditional requirements
+    if not args.disable_selection:
+        if not args.output_fasta or not args.output_barcode:
+            parser.error("--output-fasta and --output-barcode are required when --disable-selection is not used")
     
     # Setup logging FIRST
     setup_logging(args.log_file)
@@ -1091,15 +1200,29 @@ def main():
     
     # Log configuration info
     logging.info(f"Using HMM profile: {args.hmm} (length: {hmm_length})")
-    logging.info(f"Using updated quality-based selection criteria:")
-    logging.info(f"  - No original N's AND no stop codons (required)")
-    logging.info(f"  - Barcode base count > 200")
-    logging.info(f"  - Ambiguous bases < 30% of base count")
-    logging.info(f"  - Select highest base count among qualifying sequences")
+    
+    if args.disable_selection:
+        logging.info("="*60)
+        logging.info("DISABLE SELECTION MODE ENABLED")
+        logging.info("="*60)
+        logging.info("The following behavior will occur:")
+        logging.info("  - CSV output will be generated with all metrics and rankings")
+        logging.info("  - Best-per-process selection will be SKIPPED")
+        logging.info("  - output_fasta and output_barcode files will NOT be created")
+        logging.info("  - A new file 'output_barcode_all_passing.fasta' will be created")
+        logging.info("  - This file will contain ALL barcode sequences passing quality criteria")
+        logging.info("="*60)
+    else:
+        logging.info(f"Using standard selection mode with quality-based criteria:")
+        logging.info(f"  - No original N's, no stop codons, and valid reading frame required")
+        logging.info(f"  - Barcode base count > 300")
+        logging.info(f"  - Ambiguous bases < 30% of base count")
+        logging.info(f"  - Select highest base count among qualifying sequences")
+    
     logging.info(f"Using genetic code table: {args.code}")
         
     # Validate input and output files
-    if not validate_files(args.input, args.output_csv, args.output_fasta, args.hmm):
+    if not validate_files(args.input, args.output_csv, args.output_fasta, args.output_barcode, args.hmm, args.disable_selection):
         sys.exit(1)
     
     try:
@@ -1114,71 +1237,130 @@ def main():
                 result['seq_id'] = seq_id
                 all_results.append(result)
 
-        # Group sequences by process_id
-        logging.info("Grouping sequences by process_id for selection...")
-        process_groups = group_sequences_by_process(all_results)
-        logging.info(f"Found {len(process_groups)} unique process_ids")
+        if args.disable_selection:
+            # Disable selection mode: output all passing sequences
+            logging.info("="*60)
+            logging.info("SKIPPING BEST-PER-PROCESS SELECTION")
+            logging.info("="*60)
+            logging.info("Writing all sequences that pass quality criteria...")
+            
+            # Write all passing sequences to output file
+            output_file, num_passing = write_all_passing_sequences(all_results, args.output_csv)
+            
+            # Annotate results without selection
+            logging.info("Annotating results (no selection performed)...")
+            annotate_results_without_selection(all_results)
+            
+            # Clean results for CSV output
+            clean_results_for_csv_output(all_results)
+            
+            # Write CSV with results
+            logging.info("Writing CSV results...")
+            fieldnames = [
+                'file', 'seq_id', 'process_id', 'parameters', 'length',
+                'leading_gaps', 'trailing_gaps', 'internal_gaps',
+                'ambiguous_bases', 'longest_stretch', 'barcode_length',
+                'barcode_ambiguous_bases_original', 'barcode_ambiguous_bases', 'barcode_base_count',
+                'reading_frame', 'stop_codons', 'barcode_rank', 'full_rank', 'best_sequence',
+                'selected_full_fasta', 'selected_barcode_fasta'
+            ]
 
-        # Select best sequences for each process id
-        logging.info("Selecting best sequences for each process...")
-        best_sequences = select_best_sequences_for_all_processes(process_groups)
-        
-        # Write best sequences to FASTA files
-        logging.info("Writing selected sequences to output files...")
-        selection_records = write_best_sequences(best_sequences, args.output_fasta, args.output_barcode)
+            with open(args.output_csv, 'w', newline='') as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(all_results)
 
-        # Annotate all results with selection flags
-        logging.info("Annotating results with selection flags...")
-        annotate_results_with_selection(all_results, best_sequences, selection_records)
+            logging.info(f"Analysis results saved to {args.output_csv}")
+            
+            # Log summary
+            total_sequences = len(all_results)
+            process_groups = group_sequences_by_process(all_results)
+            total_processes = len(process_groups)
+            
+            logging.info("="*60)
+            logging.info("FINAL SUMMARY (DISABLE SELECTION MODE)")
+            logging.info("="*60)
+            logging.info(f"Total sequences processed: {total_sequences}")
+            logging.info(f"Total unique process_ids: {total_processes}")
+            logging.info(f"Sequences passing quality criteria: {num_passing}")
+            logging.info(f"Output file: {output_file}")
+            logging.info("="*60)
+            logging.info("Quality criteria applied:")
+            logging.info("  - No original N's (barcode_ambiguous_bases_original == 0)")
+            logging.info("  - No stop codons (stop_codons == 0)")
+            logging.info("  - Valid reading frame (reading_frame >= 0)")
+            logging.info("  - Barcode base count > 300")
+            logging.info("  - Ambiguous bases < 30% of base count")
+            logging.info("="*60)
+            
+        else:
+            # Standard mode: perform best-per-process selection
+            # Group sequences by process_id
+            logging.info("Grouping sequences by process_id for selection...")
+            process_groups = group_sequences_by_process(all_results)
+            logging.info(f"Found {len(process_groups)} unique process_ids")
 
-        # Clean results for CSV output
-        clean_results_for_csv_output(all_results)
+            # Select best sequences for each process id
+            logging.info("Selecting best sequences for each process...")
+            best_sequences = select_best_sequences_for_all_processes(process_groups)
+            
+            # Write best sequences to FASTA files
+            logging.info("Writing selected sequences to output files...")
+            selection_records = write_best_sequences(best_sequences, args.output_fasta, args.output_barcode)
 
-        # Write CSV with results
-        logging.info("Writing CSV results...")
-        fieldnames = [
-            'file', 'seq_id', 'process_id', 'parameters', 'length',
-            'leading_gaps', 'trailing_gaps', 'internal_gaps',
-            'ambiguous_bases', 'longest_stretch', 'barcode_length',
-            'barcode_ambiguous_bases_original', 'barcode_ambiguous_bases', 'barcode_base_count',
-            'reading_frame', 'stop_codons', 'barcode_rank', 'full_rank', 'best_sequence',
-            'selected_full_fasta', 'selected_barcode_fasta'
-        ]
+            # Annotate all results with selection flags
+            logging.info("Annotating results with selection flags...")
+            annotate_results_with_selection(all_results, best_sequences, selection_records)
 
-        with open(args.output_csv, 'w', newline='') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(all_results)
+            # Clean results for CSV output
+            clean_results_for_csv_output(all_results)
 
-        logging.info(f"Analysis results saved to {args.output_csv}")
-        
-        # Log selection summary
-        total_processes = len(process_groups)
-        selected_processes = len(best_sequences)
-        total_sequences = len(all_results)
-        
-        # Count successful barcode extractions
-        successful_barcode_extractions = sum(1 for process_id, records in selection_records.items() 
-                                           if records['barcode_selected_seq'] is not None)
-        
-        logging.info("="*60)
-        logging.info("FINAL SELECTION SUMMARY")
-        logging.info("="*60)
-        logging.info(f"Total sequences processed: {total_sequences}")
-        logging.info(f"Total unique process_ids: {total_processes}")
-        logging.info(f"Processes with qualifying sequences: {selected_processes}")
-        logging.info(f"Processes with no qualifying sequences: {total_processes - selected_processes}")
-        logging.info(f"Full sequences written to output: {len(selection_records)}")
-        logging.info(f"Barcode sequences written to output: {successful_barcode_extractions}")
-        logging.info("="*60)
-        
-        # Log quality criteria summary
-        if total_processes > selected_processes:
-            logging.warning(f"Note: {total_processes - selected_processes} process(es) had no sequences meeting the quality criteria:")
-            logging.warning("  - No original N's (barcode_ambiguous_bases_original == 0)")
-            logging.warning("  - No stop codons (stop_codons == 0)")
-            logging.warning("  - Barcode base count > 200")
-            logging.warning("  - Ambiguous bases < 30% of base count")
+            # Write CSV with results
+            logging.info("Writing CSV results...")
+            fieldnames = [
+                'file', 'seq_id', 'process_id', 'parameters', 'length',
+                'leading_gaps', 'trailing_gaps', 'internal_gaps',
+                'ambiguous_bases', 'longest_stretch', 'barcode_length',
+                'barcode_ambiguous_bases_original', 'barcode_ambiguous_bases', 'barcode_base_count',
+                'reading_frame', 'stop_codons', 'barcode_rank', 'full_rank', 'best_sequence',
+                'selected_full_fasta', 'selected_barcode_fasta'
+            ]
+
+            with open(args.output_csv, 'w', newline='') as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(all_results)
+
+            logging.info(f"Analysis results saved to {args.output_csv}")
+            
+            # Log selection summary
+            total_processes = len(process_groups)
+            selected_processes = len(best_sequences)
+            total_sequences = len(all_results)
+            
+            # Count successful barcode extractions
+            successful_barcode_extractions = sum(1 for process_id, records in selection_records.items() 
+                                               if records['barcode_selected_seq'] is not None)
+            
+            logging.info("="*60)
+            logging.info("FINAL SELECTION SUMMARY")
+            logging.info("="*60)
+            logging.info(f"Total sequences processed: {total_sequences}")
+            logging.info(f"Total unique process_ids: {total_processes}")
+            logging.info(f"Processes with qualifying sequences: {selected_processes}")
+            logging.info(f"Processes with no qualifying sequences: {total_processes - selected_processes}")
+            logging.info(f"Full sequences written to output: {len(selection_records)}")
+            logging.info(f"Barcode sequences written to output: {successful_barcode_extractions}")
+            logging.info("="*60)
+            
+            # Log quality criteria summary
+            if total_processes > selected_processes:
+                logging.warning(f"Note: {total_processes - selected_processes} process(es) had no sequences meeting the quality criteria:")
+                logging.warning("  - No original N's (barcode_ambiguous_bases_original == 0)")
+                logging.warning("  - No stop codons (stop_codons == 0)")
+                logging.warning("  - Valid reading frame (reading_frame >= 0)")
+                logging.warning("  - Barcode base count > 300")
+                logging.warning("  - Ambiguous bases < 30% of base count")
      
     except Exception as e:
         logging.error(f"An error occurred during execution: {str(e)}")
@@ -1186,4 +1368,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
