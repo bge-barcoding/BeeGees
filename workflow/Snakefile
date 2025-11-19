@@ -115,13 +115,13 @@ def validate_taxonomic_validation_config(config):
             sys.stderr.write(f"WARNING: Taxonomic validation (BLASTn) database not found: {database_path}\n")
             sys.exit(1)
 		
-        # Validate BOLD taxonomy file
-        bold_database_taxonomy = taxonomic_validation_params.get("bold_database_taxonomy", "")
-        if not bold_database_taxonomy:
-            sys.stderr.write("WARNING: 'bold_database_taxonomy' path is required when run_taxonomic_validation is true\n")
+        # Validate taxonomy file
+        database_taxonomy = taxonomic_validation_params.get("database_taxonomy", "")
+        if not database_taxonomy:
+            sys.stderr.write("WARNING: 'database_taxonomy' path is required when run_taxonomic_validation is true\n")
             sys.exit(1)
-        if not os.path.exists(bold_database_taxonomy):
-            sys.stderr.write(f"WARNING: BOLD taxonomy file not found: {bold_database_taxonomy}\n")
+        if not os.path.exists(database_taxonomy):
+            sys.stderr.write(f"WARNING: Taxonomy file not found: {database_taxonomy}\n")
             sys.exit(1)
         
         # Validate expected taxonomy file
@@ -161,11 +161,45 @@ def parse_samples(samples_file):
     samples = {}
     with open(samples_file, mode='r') as infile:
         reader = csv.DictReader(infile)
+        
+        # Get the actual column names from the CSV
+        fieldnames = reader.fieldnames
+        
+        # Check for required columns with helpful error messages
+        required_columns = {
+            'ID': ['ID', 'id', 'sample_id', 'SampleID'],
+            'forward': ['forward', 'fwd', 'R1', 'read1'],
+            'reverse': ['reverse', 'rev', 'R2', 'read2']
+        }
+        
+        column_mapping = {}
+        missing_columns = []
+        
+        for required, alternatives in required_columns.items():
+            found = False
+            for alt in alternatives:
+                if alt in fieldnames:
+                    column_mapping[required] = alt
+                    found = True
+                    break
+            if not found:
+                missing_columns.append(f"{required} (acceptable alternatives: {', '.join(alternatives)})")
+        
+        if missing_columns:
+            sys.stderr.write(f"ERROR: samples.csv is missing required columns:\n")
+            for missing in missing_columns:
+                sys.stderr.write(f"  - {missing}\n")
+            sys.stderr.write(f"\nFound columns in CSV: {', '.join(fieldnames)}\n")
+            sys.stderr.write(f"\nPlease ensure your CSV has columns for sample ID and forward/reverse reads.\n")
+            sys.exit(1)
+        
+        # Parse rows using the mapped column names
         for row in reader:
-            sample_id = row['ID']
-            forward_read = row['forward']
-            reverse_read = row['reverse']
+            sample_id = row[column_mapping['ID']]
+            forward_read = row[column_mapping['forward']]
+            reverse_read = row[column_mapping['reverse']]
             samples[sample_id] = {"R1": forward_read, "R2": reverse_read}
+    
     return samples
 
 def parse_sequence_references(sequence_reference_file):
@@ -174,14 +208,10 @@ def parse_sequence_references(sequence_reference_file):
     with open(sequence_reference_file, mode='r') as infile:
         reader = csv.DictReader(infile)
         for row in reader:
-            sample_id = row['process_id']
-            reference_name = row['reference_name']
+            sample_id = row['ID']
             protein_reference_path = row['protein_reference_path']
-            nucleotide_reference_path = row['nucleotide_reference_path']
             sequence_references[sample_id] = {
-                "reference_name": reference_name, 
                 "protein_path": protein_reference_path,
-                "nucleotide_path": nucleotide_reference_path
             }    
     return sequence_references
 
@@ -215,10 +245,7 @@ fasta_cleaner_params = config.get("fasta_cleaner", {
     "human_threshold": 0.95,
     "at_difference": 0.1,
     "at_mode": "absolute",
-    "outlier_percentile": 90.0,
-    "disable_human": False,
-    "disable_at": False,
-    "disable_outliers": False
+    "outlier_percentile": 90.0
 })
 
 # Structural validation configuration
@@ -235,7 +262,7 @@ taxonomic_validation_params = config.get("taxonomic_validation", {
     "database": "",
     "verbose": True,
     "blast_options": "-evalue 1e-5 -max_target_seqs 20 -num_threads 1",
-    "bold_database_taxonomy": "",
+    "database_taxonomy": "",
     "expected_taxonomy": "",
     "taxval_rank": "family",
     "min_pident": "80"
@@ -274,8 +301,7 @@ def get_hmm_file_for_target(target):
     hmm_mapping = {
         "cox1": "resources/hmm/COI-5P.hmm",
         "coi": "resources/hmm/COI-5P.hmm",
-        "rbcl": "resources/hmm/rbcL.hmm",
-        "matk": "resources/hmm/matK.hmm"
+        "rbcl": "resources/hmm/rbcL.hmm"
     }
     
     target_lower = target.lower()
@@ -372,21 +398,23 @@ rule all:
         os.path.join(barcode_recovery_dir_concat, "fasta_cleaner/05_cleaned_consensus/cleaned_cons_metrics-concat.csv"),
         os.path.join(barcode_recovery_dir_concat, "logs/exonerate_int_cleanup_complete.txt"),
 		
-		# ==== FASTA CLEANER (EXTRA) ====
+        # ==== BARCODE RECOVERY OUTPUTS (EXTRA) ====
         os.path.join(barcode_recovery_dir_merge, "logs/fasta_cleaner/fasta_cleaner_complete.txt"),
         os.path.join(barcode_recovery_dir_concat, "logs/fasta_cleaner/fasta_cleaner_complete.txt"),
+        os.path.join(barcode_recovery_dir, "barcode_consensus_count.tsv"),
+        os.path.join(barcode_recovery_dir, "logs/barcode_consensus_count.log"),
 		
-        # ==== STRUCTURAL VALIDATION (CONDITIONAL) ====
+		# ==== STRUCTURAL VALIDATION (CONDITIONAL) ====
         (os.path.join(main_output_dir, f"04_barcode_validation/structural/structural_validation.csv") if run_structural_validation else []),
-        (os.path.join(main_output_dir, f"04_barcode_validation/structural/{run_name}_full_sequences.fasta") if run_structural_validation else []),
-        (os.path.join(main_output_dir, f"04_barcode_validation/structural/{run_name}_barcode_sequences.fasta") if run_structural_validation else []),
+        (os.path.join(main_output_dir, f"04_barcode_validation/structural/output_barcode_all_passing.fasta") if run_structural_validation else []),
 		
 		# ==== TAXONOMIC VALIDATION (CONDITIONAL) ====
-        (os.path.join(main_output_dir, f"04_barcode_validation/taxonomic/01_local_blast_output.csv") if run_taxonomic_validation else []),
-        (os.path.join(main_output_dir, f"04_barcode_validation/taxonomic/{run_name}_barcode_sequences.fasta") if run_taxonomic_validation else []),
+        (os.path.join(main_output_dir, f"04_barcode_validation/taxonomic/metrics/01_local_blast_output.csv") if run_taxonomic_validation else []),
+        (os.path.join(main_output_dir, f"04_barcode_validation/taxonomic/validated_barcodes.fasta") if run_taxonomic_validation else []),
+        (os.path.join(main_output_dir, f"04_barcode_validation/taxonomic/metrics/02_taxonomic_validation.csv") if run_taxonomic_validation else []),
        
         # ==== FINAL OUTPUTS ====
-        os.path.join(barcode_recovery_dir, f"{run_name}_BeeGees_stats.csv"),
+        os.path.join(barcode_recovery_dir, f"{run_name}_barcode_recovery_stats.csv"),
         os.path.join(barcode_recovery_dir, f"{run_name}_all_cons_combined.fasta"),
         (os.path.join(main_output_dir, f"{run_name}_final_stats.csv") if run_structural_validation and run_taxonomic_validation else []),
         os.path.join(preprocessing_dir_concat, "logs/final_cleanup_complete.txt"),
@@ -473,9 +501,9 @@ rule fastp_pe_merge:
     log:
         out=os.path.join(preprocessing_dir_merge, "logs/fastp/{sample}_fastp.out"),
         err=os.path.join(preprocessing_dir_merge, "logs/fastp/{sample}_fastp.err")
-    threads: rule_resources["fastp_pe_merge"]["threads"]
+    threads: rule_resources["fastp_qc"]["threads"]
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["fastp_pe_merge"]["mem_mb"] * attempt
+        mem_mb=lambda wildcards, attempt: rule_resources["fastp_qc"]["mem_mb"] * attempt
     retries: 3
     shell:
         """
@@ -574,9 +602,9 @@ rule aggregate_clean_headers_logs_merge:
     log:
         out=os.path.join(preprocessing_dir_merge, "logs/clean_headers/aggregate_clean_headers.out"),
         err=os.path.join(preprocessing_dir_merge, "logs/clean_headers/aggregate_clean_headers.err")
-    threads: rule_resources["aggregate_clean_headers_logs_merge"]["threads"]
+    threads: 1
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["aggregate_clean_headers_logs_merge"]["mem_mb"] * attempt
+        mem_mb=3076
     retries: 3
     shell:
         """
@@ -608,9 +636,9 @@ rule fastp_pe_concat:
     log:
         out=os.path.join(preprocessing_dir_concat, "logs/fastp/{sample}_fastp.out"),
         err=os.path.join(preprocessing_dir_concat, "logs/fastp/{sample}_fastp.err")
-    threads: rule_resources["fastp_pe_concat"]["threads"]
+    threads: rule_resources["fastp_qc"]["threads"]
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["fastp_pe_concat"]["mem_mb"] * attempt
+        mem_mb=lambda wildcards, attempt: rule_resources["fastp_qc"]["mem_mb"] * attempt
     retries: 3
     shell:
         """
@@ -712,7 +740,7 @@ rule gzip_trimmed:
         R2_gz=os.path.join(preprocessing_dir_concat, "trimmed_data/{sample}/{sample}_R2_trimmed.fastq.gz")
     log:
         out=os.path.join(preprocessing_dir_concat, "logs/gzip/{sample}.out")
-    threads: rule_resources["gzip_trimmed"]["threads"]
+    threads: 1  # gzip is single-threaded
     resources:
         mem_mb=lambda wildcards, attempt: rule_resources["gzip_trimmed"]["mem_mb"] * attempt
     retries: 3
@@ -722,18 +750,18 @@ rule gzip_trimmed:
         
         echo "Compressing trimmed files for {wildcards.sample}" > {log.out}
         echo "Started: $(date)" >> {log.out}
-
-        # Compress the trimmed files using pigz for parallel compression
-        echo "Compressing R1 file with pigz (using {threads} threads)..." >> {log.out}
-        pigz -c -p {threads} {input.R1} > {output.R1_gz} 2>> {log.out}
         
-        echo "Compressing R2 file with pigz (using {threads} threads)..." >> {log.out}
-        pigz -c -p {threads} {input.R2} > {output.R2_gz} 2>> {log.out}
-
+        # Compress the trimmed files using gzip
+        echo "Compressing R1 file with gzip..." >> {log.out}
+        gzip -c {input.R1} > {output.R1_gz} 2>> {log.out}
+        
+        echo "Compressing R2 file with gzip..." >> {log.out}
+        gzip -c {input.R2} > {output.R2_gz} 2>> {log.out}
+        
         # Remove the original uncompressed files
         echo "Removing original uncompressed files..." >> {log.out}
         rm {input.R1} {input.R2}
-
+        
         echo "Compression completed: $(date)" >> {log.out}
         echo "Compressed file sizes:" >> {log.out}
         echo "  R1: $(numfmt --to=iec $(stat -c%s {output.R1_gz}))" >> {log.out}
@@ -748,9 +776,9 @@ rule aggregate_concat_logs:
     log:
         out=os.path.join(preprocessing_dir_concat, "logs/concat/aggregate_concat.out"),
         err=os.path.join(preprocessing_dir_concat, "logs/concat/aggregate_concat.err")
-    threads: rule_resources["aggregate_concat_logs"]["threads"]
+    threads: 1
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["aggregate_concat_logs"]["mem_mb"] * attempt
+        mem_mb=3076
     retries: 3
     shell:
         """
@@ -810,9 +838,9 @@ rule aggregate_trim_galore_logs:
     log:
         out=os.path.join(preprocessing_dir_concat, "logs/aggregate_trim_galore.out"),
         err=os.path.join(preprocessing_dir_concat, "logs/aggregate_trim_galore.err")
-    threads: rule_resources["aggregate_trim_galore_logs"]["threads"]
+    threads: 1
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["aggregate_trim_galore_logs"]["mem_mb"] * attempt
+        mem_mb=3076
     shell:
         """
         set -euo pipefail
@@ -847,10 +875,10 @@ rule MitoGeneExtractor_merge:
         t=config["t"],		
         output_dir=barcode_recovery_dir_merge,
         vulgar_dir=lambda wildcards: os.path.join(barcode_recovery_dir_merge, f"logs/mge/{wildcards.sample}_r_{wildcards.r}_s_{wildcards.s}/")
-    threads: rule_resources["MitoGeneExtractor_merge"]["threads"]
+    threads: rule_resources["MitoGeneExtractor"]["threads"]
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["MitoGeneExtractor_merge"]["mem_mb"] * attempt,
-        slurm_partition=rule_resources["MitoGeneExtractor_merge"]["partition"]
+        mem_mb=lambda wildcards, attempt: rule_resources["MitoGeneExtractor"]["mem_mb"] * attempt,
+        slurm_partition=rule_resources["MitoGeneExtractor"]["partition"]
     retries: 4
     shell:
         """
@@ -996,10 +1024,10 @@ rule MitoGeneExtractor_concat:
         t=config["t"],		
         output_dir=barcode_recovery_dir_concat,
         vulgar_dir=lambda wildcards: os.path.join(barcode_recovery_dir_concat, f"logs/mge/{wildcards.sample}_r_{wildcards.r}_s_{wildcards.s}/")
-    threads: rule_resources["MitoGeneExtractor_concat"]["threads"]
+    threads: rule_resources["MitoGeneExtractor"]["threads"]
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["MitoGeneExtractor_concat"]["mem_mb"] * attempt,
-        slurm_partition=rule_resources["MitoGeneExtractor_concat"]["partition"]
+        mem_mb=lambda wildcards, attempt: rule_resources["MitoGeneExtractor"]["mem_mb"] * attempt,
+        slurm_partition=rule_resources["MitoGeneExtractor"]["partition"]
     retries: 4
     shell:
         """
@@ -1140,9 +1168,9 @@ rule rename_and_combine_cons_merge:
     params:
         script=os.path.join(workflow.basedir, "scripts/rename_headers.py"),
         preprocessing_mode="merge"
-    threads: rule_resources["rename_and_combine_cons_merge"]["threads"]
+    threads: rule_resources["rename_and_combine_cons"]["threads"]
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["rename_and_combine_cons_merge"]["mem_mb"] * attempt
+        mem_mb=lambda wildcards, attempt: rule_resources["rename_and_combine_cons"]["mem_mb"] * attempt
     retries: 3
     shell:
         """ 
@@ -1184,9 +1212,9 @@ rule rename_and_combine_cons_concat:
     params:
         script=os.path.join(workflow.basedir, "scripts/rename_headers.py"),
         preprocessing_mode="concat"
-    threads: rule_resources["rename_and_combine_cons_concat"]["threads"]
+    threads: rule_resources["rename_and_combine_cons"]["threads"]
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["rename_and_combine_cons_concat"]["mem_mb"] * attempt
+        mem_mb=lambda wildcards, attempt: rule_resources["rename_and_combine_cons"]["mem_mb"] * attempt
     retries: 3
     shell:
         """ 
@@ -1225,9 +1253,9 @@ rule remove_exonerate_intermediates:
     output:
         merge_completion=os.path.join(barcode_recovery_dir_merge, "logs/exonerate_int_cleanup_complete.txt"),
         concat_completion=os.path.join(barcode_recovery_dir_concat, "logs/exonerate_int_cleanup_complete.txt")
-    threads: rule_resources["remove_exonerate_intermediates"]["threads"]
+    threads: 1
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["remove_exonerate_intermediates"]["mem_mb"] * attempt
+        mem_mb=2048
     retries: 2
     run:     
         # Clean each mode directory and write separate completion files
@@ -1278,9 +1306,9 @@ rule create_alignment_log_merge:
         concat_cons=os.path.join(barcode_recovery_dir_merge, f"consensus/{run_name}_cons_combined-merge.fasta")
     output:
         alignment_log=os.path.join(barcode_recovery_dir_merge, "logs/mge/alignment_files.log")
-    threads: rule_resources["create_alignment_log_merge"]["threads"]
+    threads: 1
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["create_alignment_log_merge"]["mem_mb"] * attempt
+        mem_mb=4096
     retries: 3
     run:
         alignment_files = input.alignment_files
@@ -1296,9 +1324,9 @@ rule create_alignment_log_concat:
         concat_cons=os.path.join(barcode_recovery_dir_concat, f"consensus/{run_name}_cons_combined-concat.fasta")
     output:
         alignment_log=os.path.join(barcode_recovery_dir_concat, "logs/mge/alignment_files.log")
-    threads: rule_resources["create_alignment_log_concat"]["threads"]
+    threads: 1
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["create_alignment_log_concat"]["mem_mb"] * attempt
+        mem_mb=4096
     retries: 3
     run:
         alignment_files = input.alignment_files
@@ -1307,476 +1335,7 @@ rule create_alignment_log_concat:
             for file in alignment_files:
                 log_file.write(f"{file}\n")
 				
-#!/usr/bin/env python3
-"""
-BLAST Results Processor
 
-Processes BLAST TSV files (outfmt 6) to extract top hits per query sequence.
-For each query sequence, sorts hits by pident (desc), length (desc), evalue (asc)
-and keeps the top N hits (default: 20).
-
-Also generates text files listing contigs (qseqids) that match expected taxonomic families
-based on a user-provided taxonomy CSV file.
-
-- Handles standard BLAST outputs with/without headers
-- Extracts and outputs top hits based on percent identity, alignment length, and e-value
-- Recursively searches for .tsv files in input directory and subdirectories
-- Groups files by prefix and suffix types
-- Uses taxonomy CSV file to determine expected families for each sample
-- Always generates contig lists for family matches
-
-Example:
-    python blast_processor.py --input_dir /path/to/blast_files --taxonomy_csv taxonomy.csv -o output_dir -n 20
-
-Taxonomy CSV format:
-    The CSV file must contain 'ID' and 'family' columns:
-    - ID: identifier that matches part of the .tsv filename
-    - family: expected taxonomic family for that sample
-    - Other columns are ignored
-
-Output:
-- Individual parsed files: *_parsed_blast_output.tsv
-- Contig lists: contig_lists/*_expected_family_contigs.txt
-- Log file: blast_processor_YYYYMMDD_HHMMSS.log
-"""
-
-import os
-import pandas as pd
-import argparse
-from pathlib import Path
-from collections import defaultdict
-import re
-import logging
-from datetime import datetime
-
-
-def setup_logging(log_file):
-    """
-    Set up logging to both console and file.
-    """
-    # Ensure the log file's directory exists
-    log_path = Path(log_file)
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    # Create formatter
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    
-    # Set up root logger
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-    
-    # Remove any existing handlers
-    for handler in logger.handlers[:]:
-        logger.removeHandler(handler)
-    
-    # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-    
-    # File handler
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setLevel(logging.INFO)
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-    
-    return logger
-
-
-def log_and_print(message, level='info'):
-    """
-    Log a message and print it to console.
-    """
-    logger = logging.getLogger()
-    if level == 'info':
-        logger.info(message)
-    elif level == 'error':
-        logger.error(message)
-    elif level == 'warning':
-        logger.warning(message)
-
-
-def detect_blast_format(input_file):
-    """
-    Detect if BLAST file has headers and determine the format.
-    
-    Returns:
-        tuple: (has_header, column_names)
-    """
-    # Standard BLAST outfmt 6 column names
-    standard_blast_columns = [
-        'qseqid', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen',
-        'qstart', 'qend', 'sstart', 'send', 'evalue', 'bitscore'
-    ]
-    
-    try:
-        with open(input_file, 'r') as f:
-            first_line = f.readline().strip()
-            
-            # Check if first line looks like a header
-            if first_line.startswith('#'):
-                # Comment line, skip and check next
-                first_line = f.readline().strip()
-            
-            # Split the first line and check if it matches expected column names
-            columns = first_line.split('\t')
-            
-            # Check if first line contains column names (case-insensitive)
-            blast_col_lower = [col.lower() for col in standard_blast_columns]
-            first_line_lower = [col.lower() for col in columns]
-            
-            # If the first line matches BLAST column names, it's a header
-            if (len(columns) >= 12 and 
-                all(col in blast_col_lower for col in first_line_lower[:12])):
-                log_and_print(f"  -> Detected header in file: {first_line}")
-                return True, columns[:12]  # Use the actual column names from file
-            else:
-                # No header detected, use standard names
-                return False, standard_blast_columns
-                
-    except Exception as e:
-        log_and_print(f"Warning: Could not detect format for {input_file}: {e}", level='warning')
-        return False, standard_blast_columns
-
-
-def extract_family_from_taxonomy(sseqid):
-    """
-    Extract family from taxonomic string in sseqid.
-    
-    Example: 'Chlorophyllum_brunneum|AY083206|SH1370438.10FU|refs|k__Fungi;p__Basidiomycota;c__Agaricomycetes;o__Agaricales;f__Agaricaceae;g__Chlorophyllum;s__Chlorophyllum_brunneum'
-    Returns: 'Agaricaceae'
-    """
-    if ';f__' in sseqid:
-        # Find the family part
-        family_part = sseqid.split(';f__')[1].split(';')[0]
-        return family_part
-    return None
-
-
-def load_taxonomy_mapping(taxonomy_csv):
-    """
-    Load taxonomy mapping from CSV file.
-    
-    Args:
-        taxonomy_csv (str): Path to CSV file with ID and family columns
-    
-    Returns:
-        dict: Mapping of ID to family
-    """
-    try:
-        df = pd.read_csv(taxonomy_csv)
-        
-        # Check required columns
-        if 'ID' not in df.columns or 'family' not in df.columns:
-            raise ValueError("CSV file must contain 'ID' and 'family' columns")
-        
-        # Create mapping dictionary
-        mapping = dict(zip(df['ID'], df['family']))
-        
-        log_and_print(f"Loaded taxonomy mapping for {len(mapping)} IDs from {taxonomy_csv}")
-        return mapping
-        
-    except Exception as e:
-        log_and_print(f"Error loading taxonomy CSV {taxonomy_csv}: {e}", level='error')
-        raise
-
-
-def get_expected_family_from_filename(filename, taxonomy_mapping):
-    """
-    Get expected family for a filename based on taxonomy mapping.
-    
-    Args:
-        filename (str): The .tsv filename
-        taxonomy_mapping (dict): Mapping of ID to family
-    
-    Returns:
-        tuple: (expected_family, matched_id) or (None, None) if no match
-    """
-    filename_base = Path(filename).name
-    
-    # Try to match each ID in the mapping against the filename
-    for sample_id, family in taxonomy_mapping.items():
-        if str(sample_id) in filename_base:
-            return family, sample_id
-    
-    return None, None
-
-
-def create_contig_lists(output_dir, taxonomy_mapping):
-    """
-    Create text files listing contigs (qseqids) that contain the expected family.
-    """
-    log_and_print("\nCreating contig lists for expected families...")
-    
-    # Create contig_lists directory
-    contig_dir = Path(output_dir) / 'contig_lists'
-    contig_dir.mkdir(exist_ok=True)
-    
-    # Find all parsed output files
-    parsed_files = list(Path(output_dir).glob("*_parsed_blast_output.tsv"))
-    
-    if not parsed_files:
-        log_and_print("No parsed BLAST output files found. Skipping contig list creation.", level='warning')
-        return
-    
-    processed_count = 0
-    skipped_count = 0
-    
-    for parsed_file in sorted(parsed_files):
-        # Extract original filename to get expected family
-        original_name = parsed_file.stem.replace('_parsed_blast_output', '') + '.tsv'
-        expected_family, matched_id = get_expected_family_from_filename(original_name, taxonomy_mapping)
-        
-        if not expected_family:
-            log_and_print(f"  Warning: No taxonomy mapping found for file {original_name} - skipping contig list creation", level='warning')
-            skipped_count += 1
-            continue
-        
-        log_and_print(f"  Processing {parsed_file.name}...")
-        log_and_print(f"    -> Matched ID: {matched_id}")
-        log_and_print(f"    -> Expected family: {expected_family}")
-        
-        # Read the parsed BLAST file
-        try:
-            df = pd.read_csv(parsed_file, sep='\t')
-            
-            # Find contigs with hits matching the expected family
-            matching_contigs = set()
-            
-            for _, row in df.iterrows():
-                qseqid = row['qseqid']
-                sseqid = row['sseqid']
-                family = extract_family_from_taxonomy(sseqid)
-                
-                if family == expected_family:
-                    matching_contigs.add(qseqid)
-            
-            # Create output filename
-            base_name = parsed_file.stem.replace('_parsed_blast_output', '')
-            contig_list_file = contig_dir / f"{base_name}_expected_family_contigs.txt"
-            
-            # Write contig list to file
-            with open(contig_list_file, 'w') as f:
-                # Write header with metadata
-                f.write(f"# Contigs with hits matching expected family: {expected_family}\n")
-                f.write(f"# Source file: {original_name}\n")
-                f.write(f"# Matched taxonomy ID: {matched_id}\n")
-                f.write(f"# Total contigs with expected family hits: {len(matching_contigs)}\n")
-                f.write(f"# Total unique queries in file: {df['qseqid'].nunique()}\n")
-                f.write("#\n")
-                
-                # Write contig IDs (sorted for consistency)
-                for contig in sorted(matching_contigs):
-                    f.write(f"{contig}\n")
-            
-            log_and_print(f"    -> Found {len(matching_contigs)} contigs with expected family")
-            log_and_print(f"    -> Saved to: {contig_list_file}")
-            processed_count += 1
-            
-        except Exception as e:
-            log_and_print(f"    -> Error processing {parsed_file}: {e}", level='error')
-    
-    log_and_print(f"  Created contig lists for {processed_count} files in: {contig_dir}")
-    if skipped_count > 0:
-        log_and_print(f"  Skipped {skipped_count} files due to missing taxonomy mappings")
-
-
-
-
-def process_blast_file(input_file, output_dir, top_n=20):
-    """
-    Process a single BLAST TSV file.
-    
-    Args:
-        input_file (str): Path to input BLAST TSV file
-        output_dir (str): Directory to save processed output
-        top_n (int): Number of top hits to keep per query sequence
-    """
-    try:
-        # Detect file format
-        log_and_print(f"Processing {input_file}...")
-        has_header, column_names = detect_blast_format(input_file)
-        
-        # Read the BLAST results
-        if has_header:
-            df = pd.read_csv(input_file, sep='\t', header=0)
-            log_and_print(f"  -> Reading file with headers")
-        else:
-            df = pd.read_csv(input_file, sep='\t', header=None, names=column_names)
-            log_and_print(f"  -> Reading file without headers")
-        
-        # Ensure we have the minimum required columns
-        required_columns = ['qseqid', 'sseqid', 'pident', 'length', 'evalue']
-        missing_columns = [col for col in required_columns if col not in df.columns]
-        
-        if missing_columns:
-            log_and_print(f"Error: Missing required columns {missing_columns} in {input_file}", level='error')
-            return 0, 0
-        
-        # Sort by qseqid first, then by our ranking criteria
-        # pident (desc), length (desc), evalue (asc)
-        df_sorted = df.sort_values([
-            'qseqid',           # Group by query sequence
-            'pident',           # Higher percent identity is better
-            'length',           # Longer alignments are better
-            'evalue'            # Lower e-value is better
-        ], ascending=[True, False, False, True])
-        
-        # Group by qseqid and take top N hits for each
-        top_hits = df_sorted.groupby('qseqid').head(top_n)
-        
-        # Select only the columns we want in the output
-        output_columns = ['qseqid', 'sseqid', 'pident', 'length', 'evalue']
-        result = top_hits[output_columns]
-        
-        # Generate output filename with "_parsed_blast_output" suffix
-        input_name = Path(input_file).stem
-        output_file = Path(output_dir) / f"{input_name}_parsed_blast_output.tsv"
-        
-        # Save the results with column headers
-        result.to_csv(output_file, sep='\t', index=False)
-        
-        log_and_print(f"  -> Saved {len(result)} hits from {df['qseqid'].nunique()} queries to {output_file}")
-        
-        return len(result), df['qseqid'].nunique()
-        
-    except Exception as e:
-        log_and_print(f"Error processing {input_file}: {e}", level='error')
-        return 0, 0
-
-
-def main():
-    parser = argparse.ArgumentParser(description='Process BLAST TSV files to extract top hits per query')
-    parser.add_argument('--input_dir', required=True, help='Directory containing BLAST TSV files (required)')
-    parser.add_argument('--taxonomy_csv', required=True,
-                       help='CSV file with ID and family columns for taxonomy mapping (required)')
-    parser.add_argument('-o', '--output_dir', default='parsed_blast_output', 
-                       help='Output directory (default: parsed_blast_output)')
-    parser.add_argument('-n', '--top_n', type=int, default=20,
-                       help='Number of top hits to keep per query (default: 20)')
-    parser.add_argument('--log_file', default=None,
-                       help='Log file path (default: blast_processor_YYYYMMDD_HHMMSS.log)')
-    
-    args = parser.parse_args()
-    
-    # Set up log file with timestamp if not provided
-    if args.log_file is None:
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        args.log_file = f'blast_processor_{timestamp}.log'
-    
-    # Set up logging
-    logger = setup_logging(args.log_file)
-    
-    # Load taxonomy mapping
-    try:
-        taxonomy_mapping = load_taxonomy_mapping(args.taxonomy_csv)
-    except Exception:
-        log_and_print("Failed to load taxonomy CSV. Exiting.", level='error')
-        return
-    
-    # Create output directory if it doesn't exist
-    output_dir = Path(args.output_dir)
-    
-    # Check if output_dir exists as a file (not directory) and handle it
-    if output_dir.exists() and not output_dir.is_dir():
-        log_and_print(f"Warning: '{output_dir}' exists as a file, not a directory. Removing file and creating directory.", level='warning')
-        output_dir.unlink()  # Remove the file
-    
-    output_dir.mkdir(exist_ok=True)
-    
-    # Find all BLAST TSV files recursively
-    input_dir = Path(args.input_dir)
-    tsv_files = list(input_dir.rglob('*.tsv'))
-    
-    if not tsv_files:
-        log_and_print(f"No TSV files found in {input_dir} or its subdirectories", level='error')
-        return
-    
-    log_and_print(f"BLAST Results Processor Started")
-    log_and_print(f"Input directory: {input_dir}")
-    log_and_print(f"Output directory: {output_dir}")
-    log_and_print(f"Taxonomy CSV: {args.taxonomy_csv}")
-    log_and_print(f"Log file: {args.log_file}")
-    log_and_print(f"Found {len(tsv_files)} TSV files to process (searched recursively)")
-    log_and_print(f"Keeping top {args.top_n} hits per query sequence")
-    log_and_print(f"Auto-detecting files with/without headers")
-    log_and_print(f"Contig lists will be created for all processed files")
-    log_and_print("-" * 60)
-    
-    total_hits = 0
-    total_queries = 0
-    processed_files = 0
-    file_results = []  # Store individual file results
-    
-    # Process each file
-    for tsv_file in sorted(tsv_files):
-        # Get taxonomy info for this file
-        expected_family, matched_id = get_expected_family_from_filename(tsv_file.name, taxonomy_mapping)
-        
-        hits, queries = process_blast_file(tsv_file, output_dir, args.top_n)
-        
-        total_hits += hits
-        total_queries += queries
-        
-        if hits > 0:
-            processed_files += 1
-        
-        # Store individual file result
-        file_results.append({
-            'filename': tsv_file.name,
-            'matched_id': matched_id,
-            'expected_family': expected_family,
-            'hits': hits,
-            'queries': queries,
-            'processed': hits > 0
-        })
-    
-    log_and_print("-" * 60)
-    log_and_print(f"Processing complete!")
-    log_and_print(f"Files processed: {processed_files}/{len(tsv_files)}")
-    log_and_print(f"Total queries processed: {total_queries}")
-    log_and_print(f"Total hits extracted: {total_hits}")
-    
-    # Print individual file results
-    log_and_print("\n" + "=" * 60)
-    log_and_print("PROCESSING RESULTS BY TAXONOMY ID:")
-    log_and_print("=" * 60)
-    
-    # Group results by matched vs unmatched
-    matched_files = [r for r in file_results if r['matched_id'] is not None]
-    unmatched_files = [r for r in file_results if r['matched_id'] is None]
-    
-    # Show matched files
-    for result in matched_files:
-        status = "✓" if result['processed'] else "✗"
-        log_and_print(f"\n{result['matched_id']} {status}")
-        log_and_print(f"  File: {result['filename']}")
-        log_and_print(f"  Expected family: {result['expected_family']}")
-        log_and_print(f"  Queries processed: {result['queries']}")
-        log_and_print(f"  Hits extracted: {result['hits']}")
-    
-    # Show unmatched files
-    if unmatched_files:
-        log_and_print(f"\nUnmatched Files:")
-        for result in unmatched_files:
-            status = "✓" if result['processed'] else "✗"
-            log_and_print(f"  {result['filename']} {status} - No taxonomy mapping found")
-            if result['processed']:
-                log_and_print(f"    Queries processed: {result['queries']}, Hits extracted: {result['hits']}")
-    
-    # Create contig lists (always enabled)
-    log_and_print("\n" + "=" * 60)
-    log_and_print("CREATING CONTIG LISTS:")
-    log_and_print("=" * 60)
-    create_contig_lists(output_dir, taxonomy_mapping)
-    
-    log_and_print(f"\nLog saved to: {args.log_file}")
-
-
-if __name__ == "__main__":
-    main()
-	
 # ===== FASTA CLEANER RULES - MERGE MODE =====
 
 # Sequential filtering rules (fasta_cleaner)
@@ -1792,9 +1351,9 @@ rule human_cox1_filter_merge:
         human_threshold=fasta_cleaner_params["human_threshold"]
     log:
         os.path.join(barcode_recovery_dir_merge, "logs/fasta_cleaner/01_human_filter.log")
-    threads: rule_resources["human_cox1_filter_merge"]["threads"]
+    threads: rule_resources["human_cox1_filter"]["threads"]
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["human_cox1_filter_merge"]["mem_mb"] * attempt
+        mem_mb=lambda wildcards, attempt: rule_resources["human_cox1_filter"]["mem_mb"] * attempt
     retries: 2
     shell:
         """
@@ -1826,9 +1385,9 @@ rule at_content_filter_merge:
         consensus_threshold=fasta_cleaner_params["consensus_threshold"]
     log:
         os.path.join(barcode_recovery_dir_merge, "logs/fasta_cleaner/02_at_filter.log")
-    threads: rule_resources["at_content_filter_merge"]["threads"]
+    threads: rule_resources["at_content_filter"]["threads"]
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["at_content_filter_merge"]["mem_mb"] * attempt
+        mem_mb=lambda wildcards, attempt: rule_resources["at_content_filter"]["mem_mb"] * attempt
     retries: 2
     shell:
         """
@@ -1861,9 +1420,9 @@ rule statistical_outlier_filter_merge:
         consensus_threshold=fasta_cleaner_params["consensus_threshold"]
     log:
         os.path.join(barcode_recovery_dir_merge, "logs/fasta_cleaner/03_outlier_filter.log")
-    threads: rule_resources["statistical_outlier_filter_merge"]["threads"]
+    threads: rule_resources["statistical_outlier_filter"]["threads"]
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["statistical_outlier_filter_merge"]["mem_mb"] * attempt
+        mem_mb=lambda wildcards, attempt: rule_resources["statistical_outlier_filter"]["mem_mb"] * attempt
     retries: 2
     shell:
         """
@@ -1898,9 +1457,9 @@ if use_reference_filtering:
             filter_mode=fasta_cleaner_params["reference_filter_mode"],
         log:
             os.path.join(barcode_recovery_dir_merge, "logs/fasta_cleaner/04_reference_filter.log")
-        threads: rule_resources["reference_filter_merge"]["threads"]
+        threads: rule_resources["reference_filter"]["threads"]
         resources:
-            mem_mb=lambda wildcards, attempt: rule_resources["reference_filter_merge"]["mem_mb"] * attempt
+            mem_mb=lambda wildcards, attempt: rule_resources["reference_filter"]["mem_mb"] * attempt
         retries: 2
         shell:
             """
@@ -1932,9 +1491,9 @@ if use_reference_filtering:
             preprocessing_mode="merge"
         log:
             os.path.join(barcode_recovery_dir_merge, "logs/fasta_cleaner/05_consensus_generation.log")
-        threads: rule_resources["consensus_generation_merge"]["threads"]
+        threads: rule_resources["consensus_generation"]["threads"]
         resources:
-            mem_mb=lambda wildcards, attempt: rule_resources["consensus_generation_merge"]["mem_mb"] * attempt
+            mem_mb=lambda wildcards, attempt: rule_resources["consensus_generation"]["mem_mb"] * attempt
         retries: 2
         shell:
             """
@@ -1966,9 +1525,9 @@ if use_reference_filtering:
             output_dir=os.path.join(barcode_recovery_dir_merge, "fasta_cleaner")
         log:
             os.path.join(barcode_recovery_dir_merge, "logs/fasta_cleaner/06_aggregate_metrics.log")
-        threads: rule_resources["aggregate_filter_metrics_merge"]["threads"]
+        threads: 2
         resources:
-            mem_mb=lambda wildcards, attempt: rule_resources["aggregate_filter_metrics_merge"]["mem_mb"] * attempt
+            mem_mb=3076
         retries: 2
         shell:
             """
@@ -2002,9 +1561,9 @@ else:
             preprocessing_mode="merge"
         log:
             os.path.join(barcode_recovery_dir_merge, "logs/fasta_cleaner/05_consensus_generation.log")
-        threads: rule_resources["consensus_generation_merge"]["threads"]
+        threads: rule_resources["consensus_generation"]["threads"]
         resources:
-            mem_mb=lambda wildcards, attempt: rule_resources["consensus_generation_merge"]["mem_mb"] * attempt
+            mem_mb=lambda wildcards, attempt: rule_resources["consensus_generation"]["mem_mb"] * attempt
         retries: 2
         shell:
             """
@@ -2035,9 +1594,9 @@ else:
             output_dir=os.path.join(barcode_recovery_dir_merge, "fasta_cleaner")
         log:
             os.path.join(barcode_recovery_dir_merge, "logs/fasta_cleaner/06_aggregate_metrics.log")
-        threads: rule_resources["aggregate_filter_metrics_merge"]["threads"]
+        threads: 2
         resources:
-            mem_mb=lambda wildcards, attempt: rule_resources["aggregate_filter_metrics_merge"]["mem_mb"] * attempt
+            mem_mb=3076
         retries: 2
         shell:
             """
@@ -2071,9 +1630,9 @@ rule human_cox1_filter_concat:
         human_threshold=fasta_cleaner_params["human_threshold"]
     log:
         os.path.join(barcode_recovery_dir_concat, "logs/fasta_cleaner/01_human_filter.log")
-    threads: rule_resources["human_cox1_filter_concat"]["threads"]
+    threads: rule_resources["human_cox1_filter"]["threads"]
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["human_cox1_filter_concat"]["mem_mb"] * attempt
+        mem_mb=lambda wildcards, attempt: rule_resources["human_cox1_filter"]["mem_mb"] * attempt
     retries: 2
     shell:
         """
@@ -2105,9 +1664,9 @@ rule at_content_filter_concat:
         consensus_threshold=fasta_cleaner_params["consensus_threshold"]
     log:
         os.path.join(barcode_recovery_dir_concat, "logs/fasta_cleaner/02_at_filter.log")
-    threads: rule_resources["at_content_filter_concat"]["threads"]
+    threads: rule_resources["at_content_filter"]["threads"]
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["at_content_filter_concat"]["mem_mb"] * attempt
+        mem_mb=lambda wildcards, attempt: rule_resources["at_content_filter"]["mem_mb"] * attempt
     retries: 2
     shell:
         """
@@ -2140,9 +1699,9 @@ rule statistical_outlier_filter_concat:
         consensus_threshold=fasta_cleaner_params["consensus_threshold"]
     log:
         os.path.join(barcode_recovery_dir_concat, "logs/fasta_cleaner/03_outlier_filter.log")
-    threads: rule_resources["statistical_outlier_filter_concat"]["threads"]
+    threads: rule_resources["statistical_outlier_filter"]["threads"]
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["statistical_outlier_filter_concat"]["mem_mb"] * attempt
+        mem_mb=lambda wildcards, attempt: rule_resources["statistical_outlier_filter"]["mem_mb"] * attempt
     retries: 2
     shell:
         """
@@ -2177,9 +1736,9 @@ if use_reference_filtering:
             filter_mode=fasta_cleaner_params["reference_filter_mode"],
         log:
             os.path.join(barcode_recovery_dir_concat, "logs/fasta_cleaner/04_reference_filter.log")
-        threads: rule_resources["reference_filter_concat"]["threads"]
+        threads: rule_resources["reference_filter"]["threads"]
         resources:
-            mem_mb=lambda wildcards, attempt: rule_resources["reference_filter_concat"]["mem_mb"] * attempt
+            mem_mb=lambda wildcards, attempt: rule_resources["reference_filter"]["mem_mb"] * attempt
         retries: 2
         shell:
             """
@@ -2211,9 +1770,9 @@ if use_reference_filtering:
             preprocessing_mode="concat"
         log:
             os.path.join(barcode_recovery_dir_concat, "logs/fasta_cleaner/05_consensus_generation.log")
-        threads: rule_resources["consensus_generation_concat"]["threads"]
+        threads: rule_resources["consensus_generation"]["threads"]
         resources:
-            mem_mb=lambda wildcards, attempt: rule_resources["consensus_generation_concat"]["mem_mb"] * attempt
+            mem_mb=lambda wildcards, attempt: rule_resources["consensus_generation"]["mem_mb"] * attempt
         retries: 2
         shell:
             """
@@ -2245,9 +1804,9 @@ if use_reference_filtering:
             output_dir=os.path.join(barcode_recovery_dir_concat, "fasta_cleaner")
         log:
             os.path.join(barcode_recovery_dir_concat, "logs/fasta_cleaner/06_aggregate_metrics.log")
-        threads: rule_resources["aggregate_filter_metrics_concat"]["threads"]
+        threads: 2
         resources:
-            mem_mb=lambda wildcards, attempt: rule_resources["aggregate_filter_metrics_concat"]["mem_mb"] * attempt
+            mem_mb=3076
         retries: 2
         shell:
             """
@@ -2282,9 +1841,9 @@ else:
             preprocessing_mode="concat"
         log:
             os.path.join(barcode_recovery_dir_concat, "logs/fasta_cleaner/05_consensus_generation.log")
-        threads: rule_resources["consensus_generation_concat"]["threads"]
+        threads: rule_resources["consensus_generation"]["threads"]
         resources:
-            mem_mb=lambda wildcards, attempt: rule_resources["consensus_generation_concat"]["mem_mb"] * attempt
+            mem_mb=lambda wildcards, attempt: rule_resources["consensus_generation"]["mem_mb"] * attempt
         retries: 2
         shell:
             """
@@ -2315,9 +1874,9 @@ else:
             output_dir=os.path.join(barcode_recovery_dir_concat, "fasta_cleaner")
         log:
             os.path.join(barcode_recovery_dir_concat, "logs/fasta_cleaner/06_aggregate_metrics.log")
-        threads: rule_resources["aggregate_filter_metrics_concat"]["threads"]
+        threads: 1
         resources:
-            mem_mb=lambda wildcards, attempt: rule_resources["aggregate_filter_metrics_concat"]["mem_mb"] * attempt
+            mem_mb=3076
         retries: 2
         shell:
             """
@@ -2354,9 +1913,9 @@ rule remove_fasta_cleaner_files:
         merge_dir=barcode_recovery_dir_merge,
         concat_dir=barcode_recovery_dir_concat,
         use_ref_filtering=str(use_reference_filtering)
-    threads: rule_resources["remove_fasta_cleaner_files"]["threads"]
+    threads: 1
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["remove_fasta_cleaner_files"]["mem_mb"] * attempt
+        mem_mb=2048
     retries: 2
     run:
         def cleanup_fasta_files(mode_dir, mode_name, completion_file):       
@@ -2470,9 +2029,9 @@ rule cat_consensus_files:
         final_consensus=os.path.join(barcode_recovery_dir, f"{run_name}_all_cons_combined.fasta")
     log:
         os.path.join(barcode_recovery_dir, "logs/cat_consensus_files.log")
-    threads: rule_resources["cat_consensus_files"]["threads"]
+    threads: 2
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["cat_consensus_files"]["mem_mb"] * attempt
+        mem_mb=3076
     retries: 2
     shell:
         """
@@ -2488,6 +2047,30 @@ rule cat_consensus_files:
         echo "Output file size: $(numfmt --to=iec $(stat -c%s {output.final_consensus}))" >> {log}
         """
 		
+rule barcode_consensus_count:
+    input:
+        all_cons_combined=os.path.join(barcode_recovery_dir, f"{run_name}_all_cons_combined.fasta")
+    output:
+        tsv_barcode_count=os.path.join(barcode_recovery_dir, "barcode_consensus_count.tsv"),
+        log_barcode_count=os.path.join(barcode_recovery_dir, "logs/barcode_consensus_count.log")
+    params:
+        script=os.path.join(workflow.basedir, "scripts/barcode_consensus_count.py"),
+        outlier_percentile=fasta_cleaner_params["outlier_percentile"],
+        consensus_threshold=fasta_cleaner_params["consensus_threshold"]
+    threads: 1
+    resources:
+        mem_mb=1024
+    retries: 3
+    shell:
+        """
+        set -euo pipefail
+        python {params.script} \\
+            --input {input.all_cons_combined} \\
+            --tsv {output.tsv_barcode_count} \\
+            --log {output.log_barcode_count}
+        """
+		
+		
 # ===== VALIDATION RULES =====
 
 if run_structural_validation:
@@ -2502,15 +2085,14 @@ if run_structural_validation:
             hmm_file=hmm_file_path
         output:
             csv=os.path.join(main_output_dir, f"04_barcode_validation/structural/structural_validation.csv"),
-            full_fasta=os.path.join(main_output_dir, f"04_barcode_validation/structural/{run_name}_full_sequences.fasta"),
-            barcode_fasta=os.path.join(main_output_dir, f"04_barcode_validation/structural/{run_name}_barcode_sequences.fasta")
+            all_passing_barcode=os.path.join(main_output_dir, f"04_barcode_validation/structural/output_barcode_all_passing.fasta")
         params:
             script=os.path.join(workflow.basedir, "scripts/structural_validation.py"),
             target_marker=structural_validation_params["target"],
             genetic_code=structural_validation_params.get("genetic_code", 1),  # Default to standard genetic code
             verbosity=" ".join(["--verbose" if structural_validation_params["verbose"] else ""]).strip()
         log:
-            os.path.join(main_output_dir, f"04_barcode_validation/structural/structural_validation-{run_name}.log")
+            os.path.join(main_output_dir, f"04_barcode_validation/logs/structural_validation.log")
         threads: rule_resources["structural_validation"]["threads"]
         resources:
             mem_mb=lambda wildcards, attempt: rule_resources["structural_validation"]["mem_mb"] * attempt,
@@ -2529,28 +2111,27 @@ if run_structural_validation:
 
             python {params.script} \
                 --output-csv {output.csv} \
-                --output-fasta {output.full_fasta} \
-                --output-barcode {output.barcode_fasta} \
                 --input {input.fasta_concat} {input.fasta_merge} {input.clean_fasta_concat} {input.clean_fasta_merge} \
                 --hmm {input.hmm_file} \
                 --code {params.genetic_code} \
                 --log-file {log} \
+                --disable-selection \
                 {params.verbosity}
             """
 
 if run_taxonomic_validation:
     rule local_blast:
         input:
-            barcode_fasta=os.path.join(main_output_dir, f"04_barcode_validation/structural/{run_name}_barcode_sequences.fasta")
+            barcode_fasta=os.path.join(main_output_dir, f"04_barcode_validation/structural/output_barcode_all_passing.fasta")
         output:
-            csv=os.path.join(main_output_dir, f"04_barcode_validation/taxonomic/01_local_blast_output.csv")
+            csv=os.path.join(main_output_dir, f"04_barcode_validation/taxonomic/metrics/01_local_blast_output.csv")
         params:
             script=os.path.join(workflow.basedir, "scripts/tv_local_blast.py"),
             database=taxonomic_validation_params["database"],
             verbosity="--verbose" if taxonomic_validation_params["verbose"] else "",
             out_dir=os.path.join(main_output_dir, f"04_barcode_validation/taxonomic/") 
         log:
-            os.path.join(main_output_dir, f"04_barcode_validation/taxonomic/01_local_blast-{run_name}.log")
+            os.path.join(main_output_dir, f"04_barcode_validation/logs/01_local_blast.log")
         threads: rule_resources["taxonomic_validation"]["threads"]
         resources:
             mem_mb=lambda wildcards, attempt: rule_resources["taxonomic_validation"]["mem_mb"] * attempt,
@@ -2592,20 +2173,21 @@ if run_taxonomic_validation:
 if run_taxonomic_validation:
     rule blast2taxonomy:
         input:
-            blast_csv=os.path.join(main_output_dir, f"04_barcode_validation/taxonomic/01_local_blast_output.csv"),
-            bold_taxonomy=taxonomic_validation_params["bold_database_taxonomy"],
+            blast_csv=os.path.join(main_output_dir, f"04_barcode_validation/taxonomic/metrics/01_local_blast_output.csv"),
+            blast_taxonomy=taxonomic_validation_params["database_taxonomy"],
             expected_taxonomy=taxonomic_validation_params["expected_taxonomy"],
-            input_fasta=os.path.join(main_output_dir, f"04_barcode_validation/structural/{run_name}_barcode_sequences.fasta")
+            input_fasta=os.path.join(main_output_dir, f"04_barcode_validation/structural/output_barcode_all_passing.fasta")
         output:
-            taxonomy_csv=os.path.join(main_output_dir, f"04_barcode_validation/taxonomic/02_taxonomic_validation.csv"),
-            barcode_fasta=os.path.join(main_output_dir, f"04_barcode_validation/taxonomic/{run_name}_barcode_sequences.fasta"),
+            taxonomy_csv=os.path.join(main_output_dir, f"04_barcode_validation/taxonomic/metrics/02_taxonomic_validation.csv"),
+            barcode_fasta=os.path.join(main_output_dir, f"04_barcode_validation/taxonomic/validated_barcodes.fasta"),
             final_fasta=os.path.join(main_output_dir, f"{run_name}_final_validated_barcodes.fasta")
         params:
             script=os.path.join(workflow.basedir, "scripts/tv_blast2taxonomy.py"),
             taxval_rank=taxonomic_validation_params.get("taxval_rank", "family"),
-            min_pident=taxonomic_validation_params.get("min_pident", "80")
+            min_pident=taxonomic_validation_params.get("min_pident", "80"),
+            min_length=taxonomic_validation_params.get("min_length", "100")
         log:
-            os.path.join(main_output_dir, f"04_barcode_validation/taxonomic/02_blast2taxonomy-{run_name}.log")
+            os.path.join(main_output_dir, f"04_barcode_validation/logs/02_taxonomic_validation.log")
         threads: rule_resources["blast2taxonomy"]["threads"]
         resources:
             mem_mb=lambda wildcards, attempt: rule_resources["blast2taxonomy"]["mem_mb"] * attempt
@@ -2616,7 +2198,7 @@ if run_taxonomic_validation:
 
             echo "Starting taxonomy validation analysis: $(date)" > {log}
             echo "BLAST CSV: {input.blast_csv}" >> {log}
-            echo "BOLD taxonomy: {input.bold_taxonomy}" >> {log}
+            echo "BLAST taxonomy: {input.blast_taxonomy}" >> {log}
             echo "Expected taxonomy: {input.expected_taxonomy}" >> {log}
             echo "Input FASTA: {input.input_fasta}" >> {log}
             echo "Validation rank: {params.taxval_rank}" >> {log}
@@ -2625,16 +2207,16 @@ if run_taxonomic_validation:
 
             python {params.script} \\
                 --taxval-rank {params.taxval_rank} \\
-                --input-blast {input.blast_csv} \\
-                --input-bold {input.bold_taxonomy} \\
-                --input-taxonomy {input.expected_taxonomy} \\
+                --input-blast-csv {input.blast_csv} \\
+                --input-taxonomy-file {input.blast_taxonomy} \\
+                --input-exp-taxonomy {input.expected_taxonomy} \\
                 --input-fasta {input.input_fasta} \\
                 --output-csv {output.taxonomy_csv} \\
                 --output-fasta {output.barcode_fasta} \\
                 --min-pident {params.min_pident} \\
+                --min-length {params.min_length} \\
                 --log {log} \\
                 >> {log} 2>&1
-
 
             # Copy and rename the barcode_fasta to another directory
             cp {output.barcode_fasta} {output.final_fasta}
@@ -2658,7 +2240,7 @@ rule extract_stats_to_csv_merge:
         cleaning_csv=os.path.join(barcode_recovery_dir_merge, "fasta_cleaner/combined_statistics.csv"),
         cleaner_complete=os.path.join(barcode_recovery_dir_merge, "logs/fasta_cleaner_complete.txt"),
         post_fasta=os.path.join(barcode_recovery_dir_merge, "fasta_cleaner/cleaned_cons_combined.fasta"),
-        ref_seqs=os.path.join(main_output_dir, "references/sequence_references.csv") if run_gene_fetch else []
+        ref_seqs=os.path.join(main_output_dir, "02_references/sequence_references.csv") if run_gene_fetch else []
     output:
         stats=os.path.join(barcode_recovery_dir_merge, f"{run_name}_merge-stats.csv")
     params:
@@ -2666,9 +2248,9 @@ rule extract_stats_to_csv_merge:
         out_dir=os.path.join(barcode_recovery_dir_merge, "out/"),
         log_dir=os.path.join(barcode_recovery_dir_merge, "logs/mge"),
         ref_seqs_arg=lambda wildcards, input: f"--ref_seqs {input.ref_seqs}" if run_gene_fetch else ""
-    threads: rule_resources["extract_stats_to_csv_merge"]["threads"]
+    threads: rule_resources["extract_stats_to_csv"]["threads"]
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["extract_stats_to_csv_merge"]["mem_mb"] * attempt
+        mem_mb=lambda wildcards, attempt: rule_resources["extract_stats_to_csv"]["mem_mb"] * attempt
     retries: 3
     shell:
         """
@@ -2692,7 +2274,7 @@ rule extract_stats_to_csv_concat:
         cleaning_csv=os.path.join(barcode_recovery_dir_concat, "fasta_cleaner/combined_statistics.csv"),
         cleaner_complete=os.path.join(barcode_recovery_dir_concat, "logs/fasta_cleaner_complete.txt"),
         post_fasta=os.path.join(barcode_recovery_dir_concat, "fasta_cleaner/cleaned_cons_combined.fasta"),
-        ref_seqs=os.path.join(main_output_dir, "references/sequence_references.csv") if run_gene_fetch else []
+        ref_seqs=os.path.join(main_output_dir, "02_references/sequence_references.csv") if run_gene_fetch else []
     output:
         stats=os.path.join(barcode_recovery_dir_concat, f"{run_name}_concat-stats.csv")
     params:
@@ -2700,9 +2282,9 @@ rule extract_stats_to_csv_concat:
         out_dir=os.path.join(barcode_recovery_dir_concat, "out/"),
         log_dir=os.path.join(barcode_recovery_dir_concat, "logs/mge"),
         ref_seqs_arg=lambda wildcards, input: f"--ref_seqs {input.ref_seqs}" if run_gene_fetch else ""
-    threads: rule_resources["extract_stats_to_csv_concat"]["threads"]
+    threads: rule_resources["extract_stats_to_csv"]["threads"]
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["extract_stats_to_csv_concat"]["mem_mb"] * attempt
+        mem_mb=lambda wildcards, attempt: rule_resources["extract_stats_to_csv"]["mem_mb"] * attempt
     retries: 3
     shell:
         """
@@ -2719,12 +2301,12 @@ rule combine_stats_files:
         merge_stats=os.path.join(barcode_recovery_dir_merge, f"{run_name}_merge-stats.csv"),
         concat_stats=os.path.join(barcode_recovery_dir_concat, f"{run_name}_concat-stats.csv")
     output:
-        combined_stats=os.path.join(barcode_recovery_dir, f"{run_name}_BeeGees_stats.csv")
+        combined_stats=os.path.join(barcode_recovery_dir, f"{run_name}_barcode_recovery_stats.csv")
     params:
         script=os.path.join(workflow.basedir, "scripts/csv_combiner_mge.py")
-    threads: rule_resources["combine_stats_files"]["threads"]
+    threads: 2
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["combine_stats_files"]["mem_mb"] * attempt
+        mem_mb=3076
     retries: 3
     shell:
         """
@@ -2735,27 +2317,27 @@ rule combine_stats_files:
             --output {output.combined_stats}
         """	
 
-rule val_BeeGees_stats_merge:
+rule val_barcode_recovery_stats_merge:
     input:
         structval=os.path.join(main_output_dir, f"04_barcode_validation/structural/structural_validation.csv"),
-        taxval=os.path.join(main_output_dir, f"04_barcode_validation/taxonomic/02_taxonomic_validation.csv"),
-        BeeGees=os.path.join(barcode_recovery_dir, f"{run_name}_BeeGees_stats.csv")
+        taxval=os.path.join(main_output_dir, f"04_barcode_validation/taxonomic/metrics/02_taxonomic_validation.csv"),
+        beegees_csv=os.path.join(barcode_recovery_dir, f"{run_name}_barcode_recovery_stats.csv")
     output:
         final_stats=os.path.join(main_output_dir, f"{run_name}_final_stats.csv")
     params:
         script=os.path.join(workflow.basedir, "scripts/val_csv_merger.py")
-    threads: rule_resources["val_BeeGees_stats_merge"]["threads"]
+    threads: 1
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["val_BeeGees_stats_merge"]["mem_mb"] * attempt
+        mem_mb=3076
     retries: 3
     shell:
         """
         set -euo pipefail
 
         python {params.script} \
-            --input-structval {input.structval} \
-            --input-taxval {input.taxval} \
-            --input-BeeGees-csv {input.BeeGees} \
+            --structval-csv {input.structval} \
+            --taxval-csv {input.taxval} \
+            --beegees-csv {input.beegees_csv} \
             --output {output.final_stats}
         """	
 
@@ -2777,9 +2359,9 @@ rule cleanup_files:
     output:
         merge_complete=touch(os.path.join(preprocessing_dir_merge, "logs/final_cleanup_complete.txt")),
         concat_complete=touch(os.path.join(preprocessing_dir_concat, "logs/final_cleanup_complete.txt"))
-    threads: rule_resources["cleanup_files"]["threads"]
+    threads: 1
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["cleanup_files"]["mem_mb"] * attempt
+        mem_mb=3072
     retries: 2
     run:      
         # Function to clean up a specific mode's files
