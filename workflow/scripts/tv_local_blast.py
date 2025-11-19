@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Local BLASTn (parallelised)
+tv_local_blast.py
 
 This script provides parallel processing capabilities for running BLASTn searches on FASTA files.
 It can handle single sequences, multi-FASTA files, or entire directories of FASTA files, and
@@ -25,7 +25,7 @@ Input Processing:
 - Output files: Named based on sequence headers, organized in subdirectories for multi-FASTA input
 
 Output Format:
-- Tab-separated values (TSV) format with standard BLAST fields, ordered by pident (highest first)
+- Tab-separated values (TSV) format with standard BLAST fields and headers, ordered by pident (highest first)
 - Default output format: qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore stitle
 - One output file per input sequence
 - Files named using sanitized sequence headers
@@ -37,23 +37,23 @@ Requirements:
 
 Usage Examples:
     # Use existing database directory (auto-detect)
-    python tv_local_blast.py -i sequences.fasta -d /path/to/databases/ -o results/
+    python blast_parallel.py -i sequences.fasta -d /path/to/databases/ -o results/
     
     # Use specific existing database
-    python tv_local_blast.py -i sequences.fasta -d /path/to/databases/nt -o results/
+    python blast_parallel.py -i sequences.fasta -d /path/to/databases/nt -o results/
     
     # Create database from FASTA file
-    python tv_local_blast.py -i queries.fasta -d reference_genome.fasta -o results/
+    python blast_parallel.py -i queries.fasta -d reference_genome.fasta -o results/
     
     # Process directory with custom settings and CSV summary
-    python tv_local_blast.py -i /fasta_dir/ -d database.fasta -o results/ -p 16 --output-csv summary.csv
+    python blast_parallel.py -i /fasta_dir/ -d database.fasta -o results/ -p 16 --output-csv summary.csv
     
     # Custom BLAST parameters
-    python tv_local_blast.py -i input.fasta -d db.fasta -o out/ --blast-opts "-evalue 1e-10 -max_target_seqs 5"
+    python blast_parallel.py -i input.fasta -d db.fasta -o out/ --blast-opts "-evalue 1e-10 -max_target_seqs 5"
 
 Author: D. Parsons @NHMUK
-License: N/A
-Version: 2.2
+License: MIT
+Version: 2.3
 """
 import os
 import sys
@@ -105,7 +105,7 @@ class BLASTRunner:
         
         # Validate setup
         self._validate_setup()
-    
+		
     def _handle_database(self) -> Tuple[Path, str]:
         """
         Handle database input - either find existing database or create from FASTA.
@@ -255,7 +255,7 @@ class BLASTRunner:
             available_dbs = self._find_available_databases_in_dir(self.db_path.parent)
             raise RuntimeError(f"Error: BLAST database '{self.db_name}' not found\n"
                              f"Available databases in {self.db_path.parent}: {available_dbs}")
-    
+							 
     @staticmethod
     def sanitize_header(header: str) -> str:
         """
@@ -312,30 +312,39 @@ class BLASTRunner:
             if not lines:
                 return
             
-            # Parse lines and sort by pident (column index 2, descending)
+            # Separate header from data
+            header_line = None
             data_lines = []
+            
             for line in lines:
                 if line.strip():
                     parts = line.strip().split('\t')
-                    if len(parts) >= 3:
-                        try:
-                            pident = float(parts[2])
-                            data_lines.append((pident, line))
-                        except (ValueError, IndexError):
-                            # Keep malformed lines at the end
-                            data_lines.append((0.0, line))
+                    # Check if this is the header line (contains 'qseqid' as first column)
+                    if parts[0] == 'qseqid':
+                        header_line = line
+                    else:
+                        # Parse data lines and sort by pident (column index 2, descending)
+                        if len(parts) >= 3:
+                            try:
+                                pident = float(parts[2])
+                                data_lines.append((pident, line))
+                            except (ValueError, IndexError):
+                                # Keep malformed lines at the end
+                                data_lines.append((0.0, line))
             
             # Sort by pident (descending)
             data_lines.sort(key=lambda x: x[0], reverse=True)
             
-            # Write back sorted data
+            # Write back sorted data with header
             with open(output_file, 'w') as f:
+                if header_line:
+                    f.write(header_line)
                 for _, line in data_lines:
                     f.write(line)
                     
         except Exception as e:
             logger.warning(f"Failed to sort BLAST output {output_file}: {str(e)}")
-    
+			
     def _run_blast_single(self, query_file: Path, output_file: Path, header: str) -> Tuple[bool, str]:
         """
         Run BLAST on a single sequence file.
@@ -361,6 +370,9 @@ class BLASTRunner:
             # Run BLAST
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
             
+            # Add header to the output file
+            self._add_header_to_tsv(output_file)
+            
             # Sort output by pident
             self._sort_blast_output(output_file)
             
@@ -374,6 +386,26 @@ class BLASTRunner:
             error_msg = f"✗ Unexpected error for {header}: {str(e)}"
             logger.error(error_msg)
             return False, error_msg
+    
+    def _add_header_to_tsv(self, output_file: Path) -> None:
+        """
+        Add header line to BLAST TSV output file.
+        
+        Args:
+            output_file: Path to BLAST output TSV file
+        """
+        try:
+            # Read existing content
+            with open(output_file, 'r') as f:
+                content = f.read()
+            
+            # Write header + content
+            with open(output_file, 'w') as f:
+                f.write("qseqid\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstitle\n")
+                f.write(content)
+                
+        except Exception as e:
+            logger.warning(f"Failed to add header to {output_file}: {str(e)}")
     
     def process_single_sequence(self, args: Tuple[Path, str, Path]) -> Tuple[bool, str, str]:
         """
@@ -415,7 +447,7 @@ class BLASTRunner:
             
         except Exception as e:
             return False, f"✗ Error processing {fasta_file}: {str(e)}", str(fasta_file)
-    
+			
     def split_multifasta(self, fasta_file: Path) -> Tuple[List[Path], Path]:
         """
         Split multi-FASTA file into individual sequence files.
@@ -523,7 +555,7 @@ class BLASTRunner:
         finally:
             # Clean up temporary files
             shutil.rmtree(temp_dir, ignore_errors=True)
-    
+			
     def process_directory_parallel(self, input_dir: Path) -> None:
         """
         Process all FASTA files in a directory in parallel.
@@ -594,11 +626,13 @@ class BLASTRunner:
                 dir_skipped_count += skipped
         
         logger.info(f"Directory processing completed: {dir_processed_count} sequences processed, {dir_skipped_count} sequences skipped")
-    
+		
+
     def _generate_summary_csv(self) -> None:
         """
         Generate summary CSV file from all TSV files in the output directory.
-        Now includes sequences with no BLAST hits.
+        Only includes the first 100 hits per sample in the CSV output.
+        Includes sequences with no BLAST hits and gapopen data.
         """
         if not self.output_csv:
             return
@@ -612,17 +646,20 @@ class BLASTRunner:
             logger.warning("No TSV files found for CSV summary generation")
             return
         
-        # Extract max_target_seqs from blast_options
+        # Limit max hits in CSV to 100
+        max_csv_hits = 100
+        
+        # Extract max_target_seqs from blast_options (for processing TSV files)
         max_hits = 1000  # default
         if 'max_target_seqs' in self.blast_options:
             match = re.search(r'max_target_seqs\s+(\d+)', self.blast_options)
             if match:
                 max_hits = int(match.group(1))
         
-        # Create column headers
+        # Create column headers - now includes hitN_gaps, limited to 100 hits
         headers = ['seq_id', 'original_header']
-        for i in range(1, max_hits + 1):
-            headers.extend([f'hit{i}', f'hit{i}_pident', f'hit{i}_length', f'hit{i}_mismatch', f'hit{i}_evalue'])
+        for i in range(1, max_csv_hits + 1):
+            headers.extend([f'hit{i}', f'hit{i}_pident', f'hit{i}_length', f'hit{i}_mismatch', f'hit{i}_gaps', f'hit{i}_evalue'])
         
         # Dictionary to store results for each sequence
         sequence_results = {}
@@ -635,9 +672,6 @@ class BLASTRunner:
             }
         
         # Process TSV files to populate hits
-        sequences_with_hits = 0
-        sequences_without_hits = 0
-        
         for tsv_file in tsv_files:
             try:
                 # Read TSV file
@@ -651,11 +685,10 @@ class BLASTRunner:
                     for seq_id in self.processed_sequences:
                         if seq_id in tsv_filename or tsv_filename.endswith(seq_id):
                             logger.debug(f"No hits found for sequence: {seq_id}")
-                            sequences_without_hits += 1
                             break
                     continue
                 
-                # Parse TSV data
+                # Parse TSV data (skip header if present)
                 current_qseqid = None
                 current_hits = []
                 
@@ -664,7 +697,11 @@ class BLASTRunner:
                     if not line:
                         continue
                     
+                    # Skip header line
                     parts = line.split('\t')
+                    if parts[0] == 'qseqid':
+                        continue
+                    
                     if len(parts) < 13:  # Ensure we have all required columns
                         continue
                     
@@ -673,59 +710,53 @@ class BLASTRunner:
                     pident = parts[2]
                     length = parts[3]
                     mismatch = parts[4]
+                    gapopen = parts[5]  # Extract gapopen
                     evalue = parts[10]
                     
                     # If this is a new query sequence, process the previous one
                     if current_qseqid is not None and qseqid != current_qseqid:
                         # Find matching sequence ID in processed_sequences
-                        matching_seq_id = None
-                        for seq_id in self.processed_sequences:
-                            if seq_id == current_qseqid or current_qseqid in seq_id:
-                                matching_seq_id = seq_id
-                                break
-                        
+                        sanitized_qseqid = self.sanitize_header(current_qseqid)
+                        matching_seq_id = sanitized_qseqid if sanitized_qseqid in sequence_results else None
+    
                         if matching_seq_id and matching_seq_id in sequence_results:
+                            # Limit to max_hits when saving from the file, but will be further limited in CSV output
                             sequence_results[matching_seq_id]['hits'] = current_hits[:max_hits]
-                            if current_hits:
-                                sequences_with_hits += 1
-                        
-                        current_hits = []
+    
+                        current_hits = []    
                     
                     current_qseqid = qseqid
-                    current_hits.append([sseqid, pident, length, mismatch, evalue])
+                    current_hits.append([sseqid, pident, length, mismatch, gapopen, evalue])
                 
                 # Process the last query sequence
                 if current_qseqid is not None:
                     # Find matching sequence ID in processed_sequences
-                    matching_seq_id = None
-                    for seq_id in self.processed_sequences:
-                        if seq_id == current_qseqid or current_qseqid in seq_id:
-                            matching_seq_id = seq_id
-                            break
-                    
+                    sanitized_qseqid = self.sanitize_header(current_qseqid)
+                    matching_seq_id = sanitized_qseqid if sanitized_qseqid in sequence_results else None
+    
                     if matching_seq_id and matching_seq_id in sequence_results:
+                        # Limit to max_hits when saving from the file, but will be further limited in CSV output
                         sequence_results[matching_seq_id]['hits'] = current_hits[:max_hits]
-                        if current_hits:
-                            sequences_with_hits += 1
                 
             except Exception as e:
                 logger.warning(f"Error processing TSV file {tsv_file}: {str(e)}")
                 continue
         
-        # Count sequences without hits
+        # Count sequences with and without hits correctly
+        sequences_with_hits = len([seq for seq in sequence_results.values() if seq['hits']])
         sequences_without_hits = len([seq for seq in sequence_results.values() if not seq['hits']])
         
-        # Prepare CSV data
+        # Prepare CSV data - limiting to max_csv_hits
         csv_data = []
         for seq_id, result in sequence_results.items():
             row_data = [seq_id, result['original_header']]
             
-            # Add hit data (up to max_hits)
-            for i in range(max_hits):
+            # Add hit data (up to max_csv_hits) - includes gapopen
+            for i in range(max_csv_hits):
                 if i < len(result['hits']):
                     row_data.extend(result['hits'][i])
                 else:
-                    row_data.extend(['', '', '', '', ''])  # Empty values for missing hits
+                    row_data.extend(['', '', '', '', '', ''])  # Empty values for missing hits (6 fields)
             
             csv_data.append(row_data)
         
@@ -741,11 +772,11 @@ class BLASTRunner:
             logger.info(f"  - Total sequences: {len(sequence_results)}")
             logger.info(f"  - Sequences with hits: {sequences_with_hits}")
             logger.info(f"  - Sequences without hits: {sequences_without_hits}")
-            logger.info(f"  - Included up to {max_hits} hits per query")
+            logger.info(f"  - Included up to {max_csv_hits} hits per query (out of maximum {max_hits})")
             
         except Exception as e:
             logger.error(f"Failed to create summary CSV file: {str(e)}")
-    
+			
     def process_input(self, input_path: Path) -> None:
         """
         Process input (either directory or single file).
@@ -812,8 +843,7 @@ class BLASTRunner:
             self._generate_summary_csv()
         
         logger.info(f"BLAST searches completed. Results saved to {self.output_dir}")
-
-
+		
 def main():
     """Main function to run the BLAST script."""
     parser = argparse.ArgumentParser(
@@ -850,7 +880,7 @@ Examples:
     parser.add_argument('-p', '--processes', type=int, default=None,
                         help=f'Number of parallel processes (default: {cpu_count()})')
     parser.add_argument('--blast-opts', default='-evalue 1e-5 -max_target_seqs 100 -num_threads 1',
-                        help='Additional BLAST options (default: "-evalue 1e-5 -max_target_seqs 1000 -num_threads 1")')
+                        help='Additional BLAST options (default: "-evalue 1e-5 -max_target_seqs 100 -num_threads 1")')
     parser.add_argument('--output-csv', type=str, default=None,
                         help='Generate summary CSV file with specified filename (e.g. "summary.csv")')
     parser.add_argument('-v', '--verbose', action='store_true',
