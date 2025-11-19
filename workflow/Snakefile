@@ -44,7 +44,7 @@ def validate_config(config):
 
 def validate_gene_fetch_config(config):
     """Validate gene_fetch specific configuration"""
-    run_gene_fetch = config.get("run_gene_fetch", False)
+    run_gene_fetch = config.get("run_gene_fetch", True)
     if not isinstance(run_gene_fetch, bool):
         sys.stderr.write("WARNING: 'run_gene_fetch' must be a boolean (true/false)\n")
         sys.exit(1)
@@ -229,7 +229,7 @@ t = config["t"]
 mge_path = config["mge_path"]
 
 # Gene fetch configuration
-run_gene_fetch = config.get("run_gene_fetch", False)
+run_gene_fetch = config.get("run_gene_fetch", True)
 if run_gene_fetch:
     sequence_reference_file_path = os.path.join(config["output_dir"], "02_references", "sequence_references.csv")
 else:
