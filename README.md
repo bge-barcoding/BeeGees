@@ -87,18 +87,17 @@ git status
 
 ## Gathering sample-specific pseudo-references ##
 - The sample_references.csv file can be created manually, or using [Gene-fetch](https://github.com/bge-barcoding/gene_fetch) integrated into the workflow (highly recommended). If enabled in the config.yaml by setting `run_gene_fetch` to 'true', Gene-fetch will retrieve the necessary protein pseudo-references for each sample from NCBI GenBank using the sample's taxonomic identifier (taxid) or taxonomic hierarchy. A sequence target (e.g. COI) must be specified in the config.yaml, as well as your NCBI API credentials (email address & API key - see [guidance](https://support.nlm.nih.gov/kbArticle/?pn=KA-05317) on getting a key).
-- The file must contain the following header: **'process_id', 'reference'name' and 'protein_reference_path'.**
-  - `process_id`: Unique sample identifier. This **musst** be he same as the 'ID' in the input samples.csv file.
-  - `reference_name`:
-  - 
+- The file must contain the following header: **'ID', 'reference'name' and 'protein_reference_path'.**
+  - `ID`: Unique sample identifier. This **must** be the same string as the 'ID' column in the input samples.csv file.
+  - `protein_reference_path`: Absolute path to the protein pseudo-reference sequence used for sample-specific protein-guided read alignment.
 
 **sample_references.csv example**
-| process_id | reference_name | protein_reference_path | 
-| --- | --- | --- |
-| BSNHM002-24  | BSNHM002-24 | path/to/BSNHM002-24.fasta |
-| BSNHM038-24 | BSNHM038-24 | path/to/BSNHM038-24.fasta |
-| BSNHM046-24 | BSNHM046-24 | path/toBSNHM046-24.fasta |
-* **Currently, it is crucial that the sample ID (process_id), reference sequence FASTA file, and corresponding reference sequence FASTA header are all identical for correct sample-reference file mapping.**
+| ID | protein_reference_path | 
+| --- | --- |
+| BSNHM002-24 | path/to/BSNHM002-24.fasta |
+| BSNHM038-24 | path/to/BSNHM038-24.fasta |
+| BSNHM046-24 | path/toBSNHM046-24.fasta |
+* **Currently, it is crucial that the sample ID (ID), the reference sequence FASTA filename, and corresponding reference sequence FASTA header are all identical for correct sample-reference file mapping.** Gene-fetch will handle this for you.
 
 ## Customising snakemake configuration file ##
 - Update [config/config.yaml](https://github.com/bge-barcoding/BeeGees/blob/main/config/config.yaml) with the neccessary paths and variables.
@@ -320,8 +319,7 @@ The barcode validation outputs are merged with pre-processing and barcode recove
 
 
 # Future developments #
-- Split Snakefile into modular .smk files.
-- - Expand supported markers beyond COI-5P and rbcL. Will require marker-specific HMMs, BLAST databases and associated taxonomy files for barcode validation. Next likely maker to be added = Matk.
+- Expand supported markers beyond COI-5P and rbcL. Will require marker-specific HMMs, BLAST databases and associated taxonomy files for barcode validation. Next likely maker to be added = Matk.
 - Increase flexibility of input sequence_references CSV headers, so that ID/id/Process ID/PROCESS ID/process_id/sample/sample_id/SAMPLE ID/etc are accepted.
 - Update 01_human_cox1_filter.py so it does not solely filter aligned reads against human COI, but instead against the whole human mitogenome.
 - Integrate pre-MGE contamination screening step (e.g. using BBDuk)
