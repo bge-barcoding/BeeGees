@@ -22,14 +22,14 @@ Snakemake workflow for recovering high-quality barcode sequences at scale, built
 
 
 # Workflow #
+<div align="center">
+  <img width="1819" height="858" src="https://github.com/user-attachments/assets/ad5f64e7-f253-4801-98fb-859a031de56b">
+</div>
+
+
 1. **Preprocessing modes** (both modes run in parallel to optimise barcode recovery from degraded hDNA):
-   - **concat**: Adapter trimming, quality filtering, poly-G trimming, and deduplication of paired-end reads using [fastp](https://github.com/OpenGene/fastp), followed by concatenation of R1+R2 reads and secondary quality trimming with [TrimGalore](https://github.com/FelixKrueger/TrimGalore).
-   - **merge**: Quality control and merging of overlapping paired-end reads using [fastp](https://github.com/OpenGene/fastp), with header cleaning for MitoGeneExtractor compatibility.
-
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/139b8c7c-b0dc-465c-8c95-e3a58ea1ab96" width="650"/>
-</p>
-
+   - **concat**: Adapter trimming, quality filtering, poly-G trimming, deduplication of paired-end reads using [fastp](https://github.com/OpenGene/fastp), followed by concatenation of R1+R2 reads, a secondary quality trimming with [TrimGalore](https://github.com/FelixKrueger/TrimGalore), and optional read downsampling.
+   - **merge**: Quality control and merging of overlapping paired-end reads using [fastp](https://github.com/OpenGene/fastp), with header cleaning for MitoGeneExtractor compatibility, and optional read downsampling.
 2. **Sample-specific reference retrieval**: Automated retrieval of taxonomically-appropriate protein reference sequences from GenBank using [Gene-Fetch](https://github.com/bge-barcoding/gene_fetch).
 3. **Barcode recovery**: Protein reference-guided extraction of barcode sequences from preprocessed reads using [MitoGeneExtractor](https://github.com/cmayer/MitoGeneExtractor), producing initial consensus sequences for both preprocessing modes.
 4. **Consensus sequence preparation**: Header standardisation and concatenation of raw consensus sequences into multi-FASTA format for downstream processing.
@@ -39,11 +39,6 @@ Snakemake workflow for recovering high-quality barcode sequences at scale, built
    - Statistical outlier removal (eliminates reads dissimilar to initial consensus) ([03_statistical_outliers.py](https://github.com/bge-barcoding/MitoGeneExtractor-BGE/blob/main/workflow/scripts/03_statistical_outlier_filter.py)
    - Optional: Custom reference-based filtering ([04_reference_filter.py](https://github.com/bge-barcoding/MitoGeneExtractor-BGE/blob/main/workflow/scripts/04_reference_filter.py)
    - Cleaned consensus generation and metrics aggregation ([05_consensus_generator.py](https://github.com/bge-barcoding/MitoGeneExtractor-BGE/blob/main/workflow/scripts/05_consensus_generator.py)
-
-<p align="center">
-  <img width="285" height="443" alt="image" src="https://github.com/user-attachments/assets/957d43a7-0c00-40ce-bab8-1827d0e37e1b" />
-</p>
-
 6. **Barcode validation and selection** (see Validation Process section for more detail):
    - **Structural validation**: HMM-based barcode extraction, reading frame analysis, stop codon detection, and quality ranking of all generated barcode consensus sequences ([structural_validation.py](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/structural_validation.py))
    - **Local BLASTn search**: Parallel BLASTn searches of structurally validated barcodes against local reference database ([tv_local_blast.py](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/tv_local_blast.py))
