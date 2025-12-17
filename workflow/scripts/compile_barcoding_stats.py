@@ -1,5 +1,5 @@
 """
-FASTA Sequence Analysis and Summary Tool
+Barcode recovery summary tool
 --------------------------------------
 
 This script analyses a log file containing a list of alignment FASTA files, .out files
@@ -8,7 +8,7 @@ It generates comprehensive summary statistics in CSV format with separate rows f
 alignment data (from FASTA files) and cleaning data (from cleaning CSV).
 
 Usage:
-    python mge_stats.py -a/--alignment_log <log_file> -o/--output <output_csv> -od/--out_file_dir <out_file_dir> -c/--cleaning_csv <cleaning_csv>
+    python compile_barcoding_stats.py -a/--alignment_log <log_file> -o/--output <output_csv> -od/--out_file_dir <out_file_dir> -c/--cleaning_csv <cleaning_csv>
 
 Arguments:
     -a, --alignment_log : str
@@ -25,6 +25,8 @@ Arguments:
         Path to multi-FASTA file containing pre-cleaning sequences for header extraction
     --post-fasta : str (optional)
         Path to multi-FASTA file containing post-cleaning sequences for header extraction
+    --clean : flag (optional)
+        Remove all rows where fasta_header == 'null' from the output
 
 Auto-detection:
     The script automatically detects "merge_mode" in file paths and appends "_merge" to 
@@ -32,7 +34,7 @@ Auto-detection:
 
 Outputs:
     - <output_file>.csv: Main summary file containing all statistics
-    - mge_stats.log: Log file with processing information
+    - compile_barcoding_stats.log: Log file with processing information
 
 The script generates the following metrics for each sample:
     - Filename: Identifier extracted from the filename
@@ -70,10 +72,10 @@ import glob
 
 
 # Set up logging
-logger = logging.getLogger('mge_stats')
+logger = logging.getLogger('compile_barcoding_stats')
 logger.setLevel(logging.INFO)
 # Use mode='w' to overwrite the log file each time
-file_handler = logging.FileHandler('mge_stats.log', mode='w')
+file_handler = logging.FileHandler('compile_barcoding_stats.log', mode='w')
 file_handler.setLevel(logging.INFO)
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.INFO)
@@ -306,10 +308,10 @@ def parse_ref_seqs_csv(file_path):
         with open(file_path, 'r', newline='') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
-                process_id = row.get('process_id', '').strip()
+                process_id = row.get('ID', row.get('process_id', '')).strip()
                 if process_id:
                     ref_stats = {
-                        'taxid': row.get('taxid', '').strip(),
+                        'first_matched_taxid': row.get('first_matched_taxid', row.get('taxid', '')).strip(),
                         'protein_accession': row.get('protein_accession', '').strip(),
                         'matched_rank': row.get('matched_rank', '').strip()
                     }
@@ -321,7 +323,6 @@ def parse_ref_seqs_csv(file_path):
     except Exception as e:
         logger.error(f"Error reading reference sequences CSV file {file_path}: {e}")
         return {}
-
 
 def process_fasta_file(file_path):
     """Process a FASTA file and extract sequence statistics."""
@@ -454,7 +455,7 @@ def process_fasta_file(file_path):
         'cov_med': round(median_coverage, 2),
     }
 
-def summarise_fasta(log_file, output_file, out_file_dir, cleaning_csv=None, ref_seqs_csv=None, pre_fasta=None, post_fasta=None):
+def summarise_fasta(log_file, output_file, out_file_dir, cleaning_csv=None, ref_seqs_csv=None, pre_fasta=None, post_fasta=None, clean_null_headers=False):
     """Summarise FASTA files based on log file with cleaning statistics from CSV and auto-detect merge mode."""
     
     # Auto-detect merge mode from file paths
@@ -516,6 +517,12 @@ def summarise_fasta(log_file, output_file, out_file_dir, cleaning_csv=None, ref_
     else:
         logger.info("Merge mode not detected: no suffix modification")
 
+    # Log clean flag status
+    if clean_null_headers:
+        logger.info("Clean mode enabled: rows with fasta_header == 'null' will be excluded from output")
+    else:
+        logger.info("Clean mode disabled: all rows will be included in output")
+
     # Get alignment stats from .out files
     out_files = [f for f in os.listdir(out_file_dir) if f.endswith('.out')]
     logger.info(f"The out_file_dir contains {len(out_files)} .out files for processing")
@@ -551,6 +558,10 @@ def summarise_fasta(log_file, output_file, out_file_dir, cleaning_csv=None, ref_
         'cleaning_removed_reference', 'cleaning_ambig_bases', 'cleaning_cov_percent'
     ]
 
+    # Track rows skipped due to cleaning
+    skipped_rows = 0
+    total_rows = 0
+
     with open(output_file, 'w', newline='') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
@@ -563,11 +574,12 @@ def summarise_fasta(log_file, output_file, out_file_dir, cleaning_csv=None, ref_
 
             result = process_fasta_file(file_path)
             if result:
+                total_rows += 1
                 filename = os.path.basename(file_path).replace('.fasta', '').replace('.fas', '').replace('_align_', '_')
                 result['Filename'] = filename
                 result['ID'] = base_id
                 ref_stats = ref_data.get(base_id, {})
-                result['sample_taxid'] = ref_stats.get('taxid', 'null')
+                result['sample_taxid'] = ref_stats.get('first_matched_taxid', 'null')
                 result['ref_accession'] = ref_stats.get('protein_accession', 'null')
                 result['ref_rank'] = ref_stats.get('matched_rank', 'null')
                 result['mge_params'] = params if params else 'null'
@@ -605,6 +617,12 @@ def summarise_fasta(log_file, output_file, out_file_dir, cleaning_csv=None, ref_
                 result['cleaning_ambig_bases'] = 'null'
                 result['cleaning_cov_percent'] = 'null'
 
+                # Check if we should skip this row due to clean flag
+                if clean_null_headers and result['fasta_header'] == 'null':
+                    skipped_rows += 1
+                    logger.debug(f"Skipping FASTA row for {result['Filename']} due to null fasta_header")
+                    continue
+
                 # Write FASTA-derived row to the CSV file
                 writer.writerow(result)
 
@@ -630,6 +648,7 @@ def summarise_fasta(log_file, output_file, out_file_dir, cleaning_csv=None, ref_
                 logger.warning(f"Could not extract base_id from cleaning sample name: {sample_name}")
                 continue
 
+            total_rows += 1
             processed_count += 1
 
             # Create cleaning-derived result
@@ -639,7 +658,7 @@ def summarise_fasta(log_file, output_file, out_file_dir, cleaning_csv=None, ref_
             
             # Get reference data if available
             ref_stats = ref_data.get(base_id, {})
-            cleaning_result['sample_taxid'] = ref_stats.get('taxid', 'null')
+            cleaning_result['sample_taxid'] = ref_stats.get('first_matched_taxid', 'null')
             cleaning_result['ref_accession'] = ref_stats.get('protein_accession', 'null')
             cleaning_result['ref_rank'] = ref_stats.get('matched_rank', 'null')
             cleaning_result['mge_params'] = mge_params if mge_params else 'null'
@@ -678,12 +697,24 @@ def summarise_fasta(log_file, output_file, out_file_dir, cleaning_csv=None, ref_
             cleaning_result['cleaning_ambig_bases'] = cleaning_stats.get('ambig_bases', 'null')
             cleaning_result['cleaning_cov_percent'] = round(cleaning_stats.get('cov_percent', 0), 2) if 'cov_percent' in cleaning_stats else 'null'
 
+            # Check if we should skip this row due to clean flag
+            if clean_null_headers and cleaning_result['fasta_header'] == 'null':
+                skipped_rows += 1
+                logger.debug(f"Skipping cleaning row for {cleaning_result['Filename']} due to null fasta_header")
+                continue
+
             # Write cleaning-derived row to the CSV file
             writer.writerow(cleaning_result)
 
         logger.info(f"Finished processing cleaning data: {processed_count} processed, {skipped_count} skipped")
 
     output_file_abs = os.path.abspath(output_file)
+    
+    # Log summary of cleaning results
+    if clean_null_headers:
+        logger.info(f"Clean mode summary: {skipped_rows} rows skipped out of {total_rows} total rows due to null fasta_header")
+        logger.info(f"Final output contains {total_rows - skipped_rows} rows")
+    
     logger.info(f"CSV summary created: {output_file_abs}")
     print(f"CSV summary created: '{output_file}'.")
 
@@ -696,6 +727,7 @@ if __name__ == "__main__":
     parser.add_argument('--ref_seqs', type=str, help='Path to CSV file containing reference sequence information (taxid, accession, rank)')
     parser.add_argument('--pre-fasta', type=str, help='Path to multi-FASTA file containing pre-cleaning sequences for header extraction')
     parser.add_argument('--post-fasta', type=str, help='Path to multi-FASTA file containing post-cleaning sequences for header extraction')
+    parser.add_argument('--clean', action='store_true', help='Remove all rows where fasta_header == null from the output')
 
     args = parser.parse_args()
 
@@ -712,4 +744,4 @@ if __name__ == "__main__":
     if getattr(args, 'post_fasta') and not os.path.isfile(getattr(args, 'post_fasta')):
         parser.error(f"The post-fasta file '{getattr(args, 'post_fasta')}' does not exist.")
 
-    summarise_fasta(args.alignment_log, args.output, args.out_file_dir, args.cleaning_csv, args.ref_seqs, getattr(args, 'pre_fasta', None), getattr(args, 'post_fasta', None))
+    summarise_fasta(args.alignment_log, args.output, args.out_file_dir, args.cleaning_csv, args.ref_seqs, getattr(args, 'pre_fasta', None), getattr(args, 'post_fasta', None), args.clean)
