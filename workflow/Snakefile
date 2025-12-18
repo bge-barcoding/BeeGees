@@ -261,7 +261,7 @@ run_taxonomic_validation = config.get("run_taxonomic_validation", True)
 taxonomic_validation_params = config.get("taxonomic_validation", {
     "database": "",
     "verbose": True,
-    "blast_options": "-evalue 1e-5 -max_target_seqs 20 -num_threads 1",
+    "blast_options": "-evalue 1e-5 -max_target_seqs 50 -num_threads 4",
     "database_taxonomy": "",
     "expected_taxonomy": "",
     "taxval_rank": "family",
@@ -299,9 +299,9 @@ if run_gene_fetch:
 def get_hmm_file_for_target(target):
     """Map target gene to corresponding HMM file path"""
     hmm_mapping = {
-        "cox1": os.path.join(workflow.basedir, "resources/hmm/COI-5P.hmm"),
-        "coi": os.path.join(workflow.basedir, "resources/hmm/COI-5P.hmm"),
-        "rbcl": os.path.join(workflow.basedir, "resources/hmm/rbcL.hmm")
+        "cox1": os.path.join(workflow.basedir, "..", "resources/hmm/COI-5P.hmm"),
+        "coi": os.path.join(workflow.basedir, "..", "resources/hmm/COI-5P.hmm"),
+        "rbcl": os.path.join(workflow.basedir, "..", "resources/hmm/rbcL.hmm")
     }
     
     target_lower = target.lower()
@@ -449,7 +449,8 @@ if run_gene_fetch:
             os.path.join(main_output_dir, "02_references/gene_fetch.log")
         threads: rule_resources["gene_fetch"]["threads"]
         resources:
-            mem_mb=lambda wildcards, attempt: rule_resources["gene_fetch"]["mem_mb"] * attempt
+            mem_mb=lambda wildcards, attempt: rule_resources["gene_fetch"]["mem_mb"] * attempt,
+            slurm_partition=rule_resources["gene_fetch"]["partition"]
         retries: 3
         shell:
             """
@@ -2241,7 +2242,7 @@ if run_taxonomic_validation:
         output:
             taxonomy_csv=os.path.join(main_output_dir, f"04_barcode_validation/taxonomic/metrics/02_taxonomic_validation.csv"),
             barcode_fasta=os.path.join(main_output_dir, f"04_barcode_validation/taxonomic/validated_barcodes.fasta"),
-            final_fasta=os.path.join(main_output_dir, f"04_barcode_validation/{run_name}_validated_barcodes.fasta")
+            final_fasta=os.path.join(main_output_dir, f"{run_name}_validated_barcodes.fasta")
         params:
             script=os.path.join(workflow.basedir, "scripts/tv_blast2taxonomy.py"),
             taxval_rank=taxonomic_validation_params.get("taxval_rank", "family"),
@@ -2305,7 +2306,7 @@ rule extract_stats_to_csv_merge:
     output:
         stats=os.path.join(barcode_recovery_dir_merge, f"{run_name}_merge-stats.csv")
     params:
-        script=os.path.join(workflow.basedir, "scripts/mge_stats.py"),
+        script=os.path.join(workflow.basedir, "scripts/compile_barcoding_stats.py"),
         out_dir=os.path.join(barcode_recovery_dir_merge, "out/"),
         log_dir=os.path.join(barcode_recovery_dir_merge, "logs/mge"),
         ref_seqs_arg=lambda wildcards, input: f"--ref_seqs {input.ref_seqs}" if run_gene_fetch else ""
@@ -2319,7 +2320,7 @@ rule extract_stats_to_csv_merge:
         # Run script
         python {params.script} -a {input.alignment_log} -o {output.stats} -od {params.out_dir} -c {input.cleaning_csv} {params.ref_seqs_arg} --pre-fasta {input.pre_fasta} --post-fasta {input.post_fasta}
         # Relocate logs
-        mv mge_stats.log {params.log_dir}/
+        mv compile_barcoding_stats.log {params.log_dir}/
         """
 
 rule extract_stats_to_csv_concat:
@@ -2339,7 +2340,7 @@ rule extract_stats_to_csv_concat:
     output:
         stats=os.path.join(barcode_recovery_dir_concat, f"{run_name}_concat-stats.csv")
     params:
-        script=os.path.join(workflow.basedir, "scripts/mge_stats.py"),
+        script=os.path.join(workflow.basedir, "scripts/compile_barcoding_stats.py"),
         out_dir=os.path.join(barcode_recovery_dir_concat, "out/"),
         log_dir=os.path.join(barcode_recovery_dir_concat, "logs/mge"),
         ref_seqs_arg=lambda wildcards, input: f"--ref_seqs {input.ref_seqs}" if run_gene_fetch else ""
@@ -2353,7 +2354,7 @@ rule extract_stats_to_csv_concat:
         # Run script
         python {params.script} -a {input.alignment_log} -o {output.stats} -od {params.out_dir} -c {input.cleaning_csv} {params.ref_seqs_arg} --pre-fasta {input.pre_fasta} --post-fasta {input.post_fasta}
         # Relocate logs
-        mv mge_stats.log {params.log_dir}/
+        mv compile_barcoding_stats.log {params.log_dir}/
         """
 
 # Concatenate merge and concat stats CSV files with column alignment
