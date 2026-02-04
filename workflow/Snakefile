@@ -2406,7 +2406,8 @@ rule val_barcode_recovery_metrics_merge:
 if run_structural_validation and run_taxonomic_validation:
     rule barcoding_outcome:
         input:
-            final_metrics=os.path.join(main_output_dir, f"{run_name}_final_metrics.csv")
+            final_metrics=os.path.join(main_output_dir, f"{run_name}_final_metrics.csv"),
+            expected_taxonomy=taxonomic_validation_params["expected_taxonomy"]
         output:
             outcome_tsv=os.path.join(main_output_dir, "05_barcoding_outcome/barcoding_outcome.tsv")
         params:
@@ -2424,7 +2425,8 @@ if run_structural_validation and run_taxonomic_validation:
             mkdir -p $(dirname {output.outcome_tsv})
             
             python {params.script} \
-                --input {input.final_metrics} \
+                --metric {input.final_metrics} \
+                --taxonomy {input.expected_taxonomy} \
                 --output {output.outcome_tsv} \
                 --log {log}
             """
