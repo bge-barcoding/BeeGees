@@ -7,7 +7,7 @@
 #SBATCH --error=snakemake_run_%j.err
 
 ## Conda environment
-conda activate bgee_env
+conda activate BeeGees_env
 
 
 # Setup logging
