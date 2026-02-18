@@ -71,7 +71,7 @@ rules:
   gene_fetch:                                    # Gene Fetch
     mem_mb: 8192
     threads: 4
-    parrition: long
+    partition: PARTITION
   fastp_qc:                                      # Fastp (merge and concat modes)
     mem_mb: 16384
     threads: 4
