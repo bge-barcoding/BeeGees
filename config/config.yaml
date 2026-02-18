@@ -111,7 +111,7 @@ rules:
     mem_mb: 16384
     threads: 4
   structural_validation:                         # structural_validation.py
-    mem_mb: 16384
+    mem_mb: 32768
     threads: 16
     partition: PARTITION
   taxonomic_validation:                          # tv_local blast.py
