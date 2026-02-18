@@ -58,6 +58,7 @@ structural_validation:
 run_taxonomic_validation: true                   # If run_structural_validation == false, run_taxonomic_validation MUST also be false
 taxonomic_validation:
     database: "/BLAST_database/"                 # Path to directory containing BLASTn database files or fasta
+    database_taxonomy: ""
     taxval_rank: "family"                        # Taxonomic rank for validation (phylum, class, order, family, genus, species) (default & recommended: family)
     expected_taxonomy: "samples.csv"             # Path to CSV file containing hierarchical taxonomic lineage information for each sample.
                                                  # It must contain the following columns: ID,phylum,class,order,family,genus,speces. ID must equal 'ID' from samples_file above
