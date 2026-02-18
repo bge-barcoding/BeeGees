@@ -7,7 +7,6 @@
 #SBATCH --error=snakemake_run_%j.err
 
 ## Conda environment
-## Conda environment
 CONDA_BASE="${CONDA_BASE:-$(conda info --base 2>/dev/null)}"
  
 if [ -z "$CONDA_BASE" ]; then
