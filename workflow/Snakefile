@@ -734,10 +734,15 @@ rule fastp_pe_concat:
             touch {output.R2_trimmed}
             echo "Placeholders created: $(date)" >> {log.out}
         else
+            # Clean headers
+            echo "Cleaning headers: $(date)" >> {log.out}
+            sed -i 's/ /_/g' {output.R1_trimmed}
+            sed -i 's/ /_/g' {output.R2_trimmed}
             echo "Output file sizes:" >> {log.out}
             echo "  R1_trimmed: $(numfmt --to=iec $(stat -c%s {output.R1_trimmed}))" >> {log.out}
             echo "  R2_trimmed: $(numfmt --to=iec $(stat -c%s {output.R2_trimmed}))" >> {log.out}
         fi
+		
         echo "Processing completed: $(date)" >> {log.out}
         """
 
