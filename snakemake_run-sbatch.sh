@@ -7,6 +7,14 @@
 #SBATCH --error=snakemake_run_%j.err
 
 ## Conda environment
+## Conda environment
+CONDA_BASE="${CONDA_BASE:-$(conda info --base 2>/dev/null)}"
+ 
+if [ -z "$CONDA_BASE" ]; then
+    echo "ERROR: Cannot find conda. Please ensure conda is on your PATH or set CONDA_BASE."
+    exit 1
+fi
+ 
 conda activate BeeGees_env
 
 
