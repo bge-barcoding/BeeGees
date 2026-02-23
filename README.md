@@ -31,13 +31,13 @@ Snakemake workflow for recovering high-quality barcode sequences at scale, built
 
 
 1. **Preprocessing modes** (both modes run in parallel to optimise barcode recovery from degraded hDNA):
-   - **concat**: Adapter trimming, quality filtering, poly-G trimming, deduplication of paired-end reads using [fastp](https://github.com/OpenGene/fastp), followed by concatenation of R1+R2 reads, a secondary quality trimming with [TrimGalore](https://github.com/FelixKrueger/TrimGalore), and optional read downsampling.
-   - **merge**: Quality control and merging of overlapping paired-end reads using [fastp](https://github.com/OpenGene/fastp), with header cleaning for MitoGeneExtractor compatibility, and optional read downsampling.
+   - **concat**: Adapter trimming, quality filtering, poly-G trimming, deduplication of paired-end reads using [fastp](https://github.com/OpenGene/fastp), optional BBDuk-based contaminant screening, followed by concatenation of R1+R2 reads, a secondary quality trimming with [TrimGalore](https://github.com/FelixKrueger/TrimGalore), and optional read downsampling. Empty or fully-filtered samples are handled gracefully via placeholder file creation to prevent pipeline failure.
+   - **merge**: Quality control and merging of overlapping paired-end reads using [fastp](https://github.com/OpenGene/fastp), optional BBDuk-based contaminant screening, with header cleaning for MitoGeneExtractor compatibility, and optional read downsampling. Empty or fully-filtered samples are handled gracefully via placeholder file creation to prevent pipeline failure.
 2. **Sample-specific reference retrieval**: Automated retrieval of taxonomically-appropriate protein reference sequences from GenBank using [Gene-Fetch](https://github.com/bge-barcoding/gene_fetch).
 3. **Barcode recovery**: Protein reference-guided extraction of barcode sequences from preprocessed reads using [MitoGeneExtractor](https://github.com/cmayer/MitoGeneExtractor), producing initial consensus sequences for both preprocessing modes.
 4. **Consensus sequence preparation**: Header standardisation and concatenation of raw consensus sequences into multi-FASTA format for downstream processing.
 5. **Consensus cleaning and filtering pipeline (fasta_cleaner)**: Sequential quality filters applied to MGE read alignments to remove contaminants and outliers before generating cleaned consensus sequences:
-   - Human COI contamination removal (common in museum specimens) ([01_human_cox1_filter.py](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/01_human_cox1_filter.py)
+   - Human mitochondrial genome contamination removal (common in museum specimens) — reads are aligned against the human mitogenome using a configurable aligner (minimap2, bwa-mem, or bwa-aln) ([01_human_mitogenome_filter.py](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/01_human_cox1_filter.py))
    - AT content filtering (removes suspected fungal/bacterial contamination) ([02_at_content_filter.py](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/02_at_content_filter.py)
    - Statistical outlier removal (eliminates reads dissimilar to initial consensus) ([03_statistical_outliers.py](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/03_statistical_outlier_filter.py)
    - Optional: Custom reference-based filtering ([04_reference_filter.py](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/04_reference_filter.py)
@@ -68,9 +68,13 @@ git status
 ## Generate input sample CSV file ###
 - This can be created manually, or via [sample-processing](https://github.com/bge-barcoding/sample-processing) workflow.
 - The file must contian the following headers: **'ID', 'forward', 'reverse', and 'taxid' _OR_ 'phylum->species' (see below for more information).**
-  - `ID`: Unique sample identifier. Due to regex matching and statistics aggregation, the sample ID will be considered as the string before the first underscore. **It is therefore recommended that sample names do not use '_' characters.** E.g. BSNHM002-24 instead of BSNHM002_24, or P3-1-A10-2-G1 instead of P3_1_A10_2_G1.
+  - `ID`: Unique sample identifier. Due to regex matching and statistics aggregation, the sample ID will be considered as the string before the first underscore. **It is therefore imperative that sample names do not use '_' characters.** E.g. BSNHM002-24 instead of BSNHM002_24, or P3-1-A10-2-G1 instead of P3_1_A10_2_G1.
   - `forward` & `reverse`: Absolute paths to forward (R1) and reverse (R2) PE read files. In fastq/fq fomrat, either gzipped not.
-  - `taxid` _OR_ `heirarchical taxonomy`: Unique taxonomic identifier or taxonomic lineage for sample. Taxid's can be found manually by searching the expected species/genus/family of each sample in the [NCBI taxonomy database](https://www.ncbi.nlm.nih.gov/taxonomy). Alternatively, you can provide the taxonomic lineages of each sample (with the headers phylum, class, order, family, genus, species) and the corresponding taxid of the lowest identified taxonomic rank will be retrieved.
+  - `taxid` _OR_ `heirarchical taxonomy`: Unique taxonomic identifier or taxonomic lineage for sample. Taxid's can be found manually by searching the expected species/genus/family of each sample in the [NCBI taxonomy database](https://www.ncbi.nlm.nih.gov/taxonomy). If you provide the heirarchical taxonomic lineages of each sample (with the headers phylum, class, order, family, genus, species - see below), the corresponding taxid of the lowest identified taxonomic rank will be retrieved.
+> **Note**: The following alternative column name spellings are also accepted for `samples.csv`:
+> - `ID`: `id`, `sample_id`, `SampleID`
+> - `forward`: `fwd`, `R1`, `read1`
+> - `reverse`: `rev`, `R2`, `read2`
   
 **samples.csv example (taxid)**
 | ID | forward | reverse | taxid |
@@ -91,7 +95,7 @@ git status
 ## Gathering sample-specific pseudo-references ##
 - The sample_references.csv file can be created manually, or using [Gene-fetch](https://github.com/bge-barcoding/gene_fetch) integrated into the workflow (highly recommended). If enabled in the config.yaml by setting `run_gene_fetch` to 'true', Gene-fetch will retrieve the necessary protein pseudo-references for each sample from NCBI GenBank using the sample's taxonomic identifier (taxid) or taxonomic hierarchy. A sequence target (e.g. COI) must be specified in the config.yaml, as well as your NCBI API credentials (email address & API key - see [guidance](https://support.nlm.nih.gov/kbArticle/?pn=KA-05317) on getting a key).
 - The file must contain the following header: **'ID', 'reference'name' and 'protein_reference_path'.**
-  - `ID`: Unique sample identifier. This **must** be the same string as the 'ID' column in the input samples.csv file.
+  - `ID`: Unique sample identifier. This **must** be the same string as used in the 'ID' column in the input samples.csv file.
   - `protein_reference_path`: Absolute path to the protein pseudo-reference sequence used for sample-specific protein-guided read alignment.
 
 **sample_references.csv example**
@@ -104,6 +108,11 @@ git status
 
 ---
 
+## Contaminant reference files ##
+The `resources/contaminants/` directory contains reference files used in contaminant screening and filtering:
+- `human_mitogenome.fasta`: [Human mitochondrial genome reference (NC_012920.1)](https://www.ncbi.nlm.nih.gov/nuccore/NC_012920.1/), used by the `fasta_cleaner` human mitogenome filter step. Included in the repository. An alterative human mitochondrial genome can be supplied, with the path specified in the `config/config.yaml` (see config customisation section below).
+- `contaminants.fasta`: Collection of reference sequences used for optional pre-processing (BBDuk) contaminant screening. A set of 31 common museum specimen contaminants are included in the repository as a default set (see `contaminants.fasta` for details). A custom contaminant FASTA can be specified by declaring an alternative path in `contam_seqs` in the `config/config.yaml` (see config customisation section below).
+
 ## Customising snakemake configuration file ##
 - Update [config/config.yaml](https://github.com/bge-barcoding/BeeGees/blob/main/config/config.yaml) with the neccessary paths and variables.
 ```
@@ -111,7 +120,7 @@ git status
 run_name: BeeGees run identifier
 mge_path: Path to MGE install (MitoGeneExtractor-vX.X.X file)
 samples_file: Path to samples.csv (see above for formatting)
-sequence_reference_file: Path to sequence_references.csv (leave path blank/empty if 'run_gene_fetch' == true) (see above for formatting)
+sequence_reference_file: Path to sequence_references.csv. Only required when run_gene_fetch == false. Leave blank if run_gene_fetch == true (see above for formatting)
 output_dir: Path to output directory. If any directories in the path do not already exist, then they wil be created
 
 ## Gene Fetch parameters (https://github.com/bge-barcoding/gene_fetch)
@@ -119,9 +128,15 @@ run_gene_fetch: Set to true to use gene-fetch to generate reference sequences (d
 email: Email for NCBI API. Required if run_gene_fetch == true. 
 api_key: NCBI API key. Required if run_gene_fetch == true.
 gene: Target gene (cox1 or rbcl)
+type: Sequence type to retrieve - 'protein' for protein references only, 'both' for protein and nucleotide sequences (default: protein)
 minimum_length: Minimum length (in amino acids) of protein pseudo-reference(s) to fetch (default: 500)
 input_type: Taxonomic identification column(s) (taxid/hierarchical). i.e. Does the 'samples.csv' contain a 'taxid' column or 'hierarchical' taxonomic information columns (default: taxid)? (see above for formatting)
 genbank: Download complete GenBank records of retrieved protein pseudo-references
+
+## Contaminant screening parameters (BBDuk)
+enabled: Set to true to enable BBDuk-based contaminant screening prior to read merging/concatenation (default: false)
+contam_seqs: Path to FASTA file containing contaminant reference sequences. Default (if left empty): resources/contaminants/contaminants.fasta
+k: k-mer size for contaminant matching (default: 31)
 
 ## Downsampling parameters
 enabled: Set to true to enable downsampling (default: false)
@@ -135,14 +150,16 @@ C: Genetic code to use for Exonerate (https://www.ncbi.nlm.nih.gov/Taxonomy/Util
 t: Consensus threshold (e.g. 0.5 = 50%)
 
 ## Post-processing of aligned reads for cleaning and filtering
-# human coi filtering -> at content filtering -> statistical outlier filtering -> (optional) reference-base filtering -> 'cleaned' consensus generation
-consensus_threshold: Threshold at which bases at each positional 'column' must 'agree' to be incldued in the consensus (e.g. 0.5 = ≥50% of bases at each position must agree)
-human_threshold: Threshold at which reads are removed due to similarity with the human COI reference sequence (e.g. 0.95 = reads with ≥95% similarity are removed)
+# human mitogenome filtering -> at content filtering -> statistical outlier filtering -> (optional) reference-base filtering -> 'cleaned' consensus generation
+human_genome: Path to human mitogenome FASTA reference for contamination filtering. Default (if left empty): resources/contaminants/human_mitogenome.fasta
+aligner: Alignment tool to use for human mitogenome filtering: minimap2, bwa-mem, or bwa-aln (default: bwa-aln)
+save_removed: Set to true to save reads removed by human mitogenome filtering to a removed/ subdirectory (default: false)
 at_difference: Threshold at which reads are removed due to AT content variation (e.g. 0.1 = reads with AT% differing by 10% from the consensus are removed)
 at_mode: AT content filtering mode (Absolute/Higher/Lower). Absolute = Remove sequences if AT content differs from consensus by more than threshold in either direction. Higher = Only remove sequences with AT content above at_difference threshold. Lower = Only remove sequences with AT content below at_difference threshold
 outlier_percentile: Threshold at which reads are flagged as statistical outliers compared to the consensus and removed (e.g. 90.0 = reads < 90% 'similar' to the consensus are removed)
 reference_dir: Path to directory containing at least one [ID].fasta file with known contaminant or target species genome(s) to be filtered or retained (see reference_filter_mode below)
 reference_filter_mode: Either keep sequences that map to the supplied reference sequence (reference-based retention) or remove sequences that map to the supplied reference sequence (contaminant removal) ("keep_similar"/"remove_similar")
+consensus_threshold: Threshold at which bases at each positional 'column' must 'agree' to be incldued in the consensus (e.g. 0.5 = ≥50% of bases at each position must agree)
 
 ## Structural validation
 run_structural_validation: Set false to skip structural validation step (default: true)
@@ -161,19 +178,22 @@ min_pident: Minimum percent identity (pident) threshold to be considered for ret
 min_length: Minimum length of alignment to be considered for returned BLAST hits. Any hit with a length below this value is removed
 
 ## Resource allocation for each rule
-rules: Each of the main rules in the config.yaml can specify the number of requested threads and memory resources (in Mb) for every job (e.g. specifying 4 threads and 4G memory for fastp_pe_merge would allocate those resources for every 'fastp_pe_merge' job). Rules have dynamic memory scaling upon retry (mem_mb * retry #). Make sure to change 'PARTITION' for MitoGeneExtractor, structural_validation, and taxonomic_validation rules. 
+rules: Each of the main rules in the config.yaml can specify the number of requested threads and memory resources (in Mb) for every job (e.g. specifying 4 threads and 4G memory for fastp_pe_merge would allocate those resources for every 'fastp_pe_merge' job). Rules have dynamic memory scaling upon retry (mem_mb * retry #). Make sure to change 'PARTITION' in the config/config.yaml for relevant rules.
+
+human_mitogenome_filter threads note: threads = parallel_files × 4 threads-per-file (e.g., 32 threads = 8 parallel files × 4 aligner threads each)
+taxonomic_validation threads note: minimum 4 threads (4 threads allocated to each parallelised BLASTn instance)
 ```
 **Currently, BeeGees-integrated barcode validation only works for COI-5P and rbcL barcodes due to HMM and BLAST database availability (to be expanded with future updates).**
 
 ---
 
-## Cluster configuration using Snakemake profiles ##
+# Cluster configuration using Snakemake profiles #
 - See `profiles/` directory for config.yaml files for 'SLURM' or 'local' cluster submission parameters. Other than the default `slurm_partition` and `jobs` parameters, all other parameters can likely stay as they are unless you experience issues.
   - The default `slurm_partition` determines the SLURM cluster partition for each snakemake job, unless otherwise specified (in the config/config.yaml). It is recommended to set this to a partition with at least 12-24 hour time limits.
   - The `jobs` parameter dictates the maximium number of workflow jobs that can be run concurrently. The value to set jobs to depends on your specific cluster. If the value is too low, it will create a bottleneck and reduce run speed/efficiency. If the value is too high, you may hit filesystem limits, job submission limits, user resource quotas, and fairshare policies, resulting in many pending or idle jobs. For example, if your cluster had a per-user memory limit of 256G, setting jobs to 20 and allocating 32G memory to each MitoGeneExtractor job would result in only 8 MitoGeneExtractor jobs running in parallel and the remaining 12 jobs to be pending until memroy is available.
 - The profile (`profiles/local` or `profiles/slurm`) will need to be changed in `snakemake_run.sh` depending on your system and which one you use (see `$PROFILE` variable).
 
-### Cluster submission ###
+## Cluster submission ##
 - Depending on your system and whether you are using the 'SLURM' or 'local' snakemake profile, there are two ways to run the BeeGees pipeline:
   - **SLURM**: Use [snakemake_run-sbatch.sh](https://github.com/SchistoDan/BeeGees/blob/main/snakemake_run-sbatch.sh). Run `sbatch snakemake_run-sbatch.sh` on the head/login node of your cluster. Submits the main snakemake coordinating job to the SLURM cluster using SBATCH, and will 'farm out' each job in the workflow to a new SBATCH job for increased parallelisation. Please change `--partition` in the SBATCH header section of the script to an appropriate cluster parition. The main snakemake coordinating job needs to run throughout the entire BeeGees run. It is therefore recommended to set this to a partition with at least 1 day-1 week time limits.
   - **local**: Use [snakemake_run.sh](https://github.com/bge-barcoding/MitoGeneExtractor-BGE/blob/main/snakemake_run.sh). Simply run `./snakemake_run.sh` on your desired cluster compute node. This node will handle all job scheduling and job computation.
@@ -314,11 +334,10 @@ output_dir/
 │
 ├── **05_barcoding_outcome/**
 │   ├── baroding_outcome.log                                   # Summary and logging of barcoding outcome analysis
-│   └── barcoding-outcome.tsv                                  # Overview of barcoding outcomes
+│   └── barcoding-outcome.tsv                                  # Overview of barcoding outcomes (PASS/FAILS)
 |
-├── {run_name}_final_validated_barcodes.fasta                  # Only if both validations run
-├── {run_name}_final_stats.csv                                 # Only if both validations run
-└── logs/                                                      # Top-level logs directory
+├── {run_name}_final_validated_barcodes.fasta                  # Only produced if both validations run
+└── {run_name}_final_stats.csv                                 # Master run metrics overview. Only produced if both validations run
 ```
 
 ---
@@ -392,7 +411,5 @@ The barcode validation outputs are merged with pre-processing and barcode recove
 
 # Future developments #
 - Expand supported markers beyond COI-5P and rbcL. Will require marker-specific HMMs, BLAST databases and associated taxonomy files for barcode validation. Next likely maker to be added = Matk.
-- Increase flexibility of input sequence_references CSV headers, so that ID/id/Process ID/PROCESS ID/process_id/sample/sample_id/SAMPLE ID/etc are accepted.
-- Update 01_human_cox1_filter.py so it does not solely filter aligned reads against human COI, but instead against the whole human mitogenome.
-- Integrate pre-MGE contamination screening step (e.g. using BBDuk).
-- Output simple plots. 
+- Increase flexibility of input sequence_references CSV headers, so that ID/id/Process ID/PROCESS ID/process_id/sample/sample_id/SAMPLE ID/etc are accepted. Currently sequence_references only accepts 'ID'.
+- Output simple plots.
