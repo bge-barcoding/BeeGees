@@ -591,6 +591,14 @@ if downsampling_enabled:
             echo "Started: $(date)" >> {log.out}
             echo "Target reads: {params.max_reads}" >> {log.out}
 
+            # Check if input file is empty or missing
+            if [ ! -s "{input.merged_reads}" ]; then
+                echo "Input file is empty or missing - creating placeholder output" >> {log.out}
+                touch {output.downsampled}
+                echo "Placeholder output created: $(date)" >> {log.out}
+                exit 0
+            fi
+
             reformat.sh in={input.merged_reads} \\
                         out={output.downsampled} \\
                         samplereadstarget={params.max_reads} \\
@@ -792,7 +800,16 @@ rule gzip_trimmed:
         
         echo "Compressing trimmed files for {wildcards.sample}" > {log.out}
         echo "Started: $(date)" >> {log.out}
-        
+
+        # Check if input files are empty
+        if [ ! -s "{input.R1}" ] || [ ! -s "{input.R2}" ]; then
+            echo "Input files are empty or missing - creating placeholder outputs" >> {log.out}
+            touch {output.R1_gz}
+            touch {output.R2_gz}
+            echo "Placeholder outputs created: $(date)" >> {log.out}
+            exit 0
+        fi
+
         # Compress the trimmed files using gzip
         echo "Compressing R1 file with gzip..." >> {log.out}
         gzip -c {input.R1} > {output.R1_gz} 2>> {log.out}
@@ -860,6 +877,15 @@ rule quality_trim:
         echo "Started: $(date)" >> {log.out}
         echo "Input file: {input}" >> {log.out}
 
+        # Check if input file is empty or missing
+        if [ ! -s "{input}" ]; then
+            echo "Input file is empty or missing - creating placeholder outputs" >> {log.out}
+            touch {output.concat_trimmed}
+            touch {output.report}
+            echo "Placeholder outputs created: $(date)" >> {log.out}
+            exit 0
+        fi
+
         # Run trim_galore
         trim_galore --cores {threads} \\
                     --dont_gzip \\
@@ -894,6 +920,14 @@ if downsampling_enabled:
             echo "Downsampling concatenated trimmed reads for {wildcards.sample}" > {log.out}
             echo "Started: $(date)" >> {log.out}
             echo "Target reads: {params.max_reads} (2x read pairs for concat mode)" >> {log.out}
+
+            # Check if input file is empty or missing
+            if [ ! -s "{input.concat_trimmed}" ]; then
+                echo "Input file is empty or missing - creating placeholder output" >> {log.out}
+                touch {output.downsampled}
+                echo "Placeholder output created: $(date)" >> {log.out}
+                exit 0
+            fi
 
             reformat.sh in={input.concat_trimmed} \\
                         out={output.downsampled} \\
