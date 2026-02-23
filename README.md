@@ -143,8 +143,8 @@ enabled: Set to true to enable downsampling (default: false)
 max_reads: Maximum number of read PAIRS to process (e.g. 25M read pairs = 25M fwd + 25M rev reads, = 50M reads in total). Setting this to zero is equivilent to 'enabled: false'
 
 ## MitoGeneExtractor parameters (https://github.com/cmayer/MitoGeneExtractor/tree/main?tab=readme-ov-file#command-line-options)
-r: Exonerate relative score threshold parameter
-s: Exonerate minimum score threshold parameter
+r: Exonerate relative score threshold parameter. Accepts a list of values (e.g. [1, 1.3, 1.5]) - each value generates a separate MGE job per sample. More values increase barcode recovery sensitivity but multiply runtime and output volume proportionally.
+s: Exonerate minimum score threshold parameter. Accepts a list of values (e.g. [50, 100]) - combined with r values, every r×s combination is run per sample. For example, 3 r values × 2 s values = 6 MGE jobs per sample.
 n: Number of base pairs to extend beyond the Exonerate alignment
 C: Genetic code to use for Exonerate (https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi) 
 t: Consensus threshold (e.g. 0.5 = 50%)
@@ -191,11 +191,11 @@ taxonomic_validation threads note: minimum 4 threads (4 threads allocated to eac
 - See `profiles/` directory for config.yaml files for 'SLURM' or 'local' cluster submission parameters. Other than the default `slurm_partition` and `jobs` parameters, all other parameters can likely stay as they are unless you experience issues.
   - The default `slurm_partition` determines the SLURM cluster partition for each snakemake job, unless otherwise specified (in the config/config.yaml). It is recommended to set this to a partition with at least 12-24 hour time limits.
   - The `jobs` parameter dictates the maximium number of workflow jobs that can be run concurrently. The value to set jobs to depends on your specific cluster. If the value is too low, it will create a bottleneck and reduce run speed/efficiency. If the value is too high, you may hit filesystem limits, job submission limits, user resource quotas, and fairshare policies, resulting in many pending or idle jobs. For example, if your cluster had a per-user memory limit of 256G, setting jobs to 20 and allocating 32G memory to each MitoGeneExtractor job would result in only 8 MitoGeneExtractor jobs running in parallel and the remaining 12 jobs to be pending until memroy is available.
-- The profile (`profiles/local` or `profiles/slurm`) will need to be changed in `snakemake_run.sh` depending on your system and which one you use (see `$PROFILE` variable).
+> **The profile (`profiles/local` or `profiles/slurm`) will need to be changed in `snakemake_run.sh` (for local runs) or `snakemake_run-sbatch.sh` (for SLURM runs) depending on your system (see the `$PROFILE` variable in each script).**
 
 ## Cluster submission ##
 - Depending on your system and whether you are using the 'SLURM' or 'local' snakemake profile, there are two ways to run the BeeGees pipeline:
-  - **SLURM**: Use [snakemake_run-sbatch.sh](https://github.com/SchistoDan/BeeGees/blob/main/snakemake_run-sbatch.sh). Run `sbatch snakemake_run-sbatch.sh` on the head/login node of your cluster. Submits the main snakemake coordinating job to the SLURM cluster using SBATCH, and will 'farm out' each job in the workflow to a new SBATCH job for increased parallelisation. Please change `--partition` in the SBATCH header section of the script to an appropriate cluster parition. The main snakemake coordinating job needs to run throughout the entire BeeGees run. It is therefore recommended to set this to a partition with at least 1 day-1 week time limits.
+  - **SLURM**: Use [snakemake_run-sbatch.sh](https://github.com/SchistoDan/BeeGees/blob/main/snakemake_run-sbatch.sh). Run `sbatch snakemake_run-sbatch.sh` on the head/login node of your cluster. Submits the main snakemake coordinating job to the SLURM cluster using SBATCH, and will 'farm out' each job in the workflow to a new SBATCH job for increased parallelisation. Please change `--partition` in the SBATCH header section of the `snakemake_run-sbatch.sh` script to an appropriate parition for your cluster - The main snakemake coordinating job needs to run throughout the entire BeeGees run. It is therefore recommended to set this to a partition with at least 1 day->1 week time limits.
   - **local**: Use [snakemake_run.sh](https://github.com/bge-barcoding/MitoGeneExtractor-BGE/blob/main/snakemake_run.sh). Simply run `./snakemake_run.sh` on your desired cluster compute node. This node will handle all job scheduling and job computation.
 
 ---
@@ -211,6 +211,11 @@ output_dir/
 │   │   │   ├── {sample}_fastp_report.html                     # FastP HTML report
 │   │   │   ├── {sample}_fastp_report.json                     # FastP JSON report
 │   │   │   └── unpaired/                                      # Unpaired reads from merging
+│   │   ├── contaminant_screen/                            # Only if contaminant_screen.enabled = true
+│   │   │   └── {sample}/
+│   │   │       ├── {sample}_contaminant_reads.fastq.gz    # Reads matching contaminant references
+│   │   │       ├── {sample}_contaminant_stats.txt         # BBDuk summary statistics
+│   │   │       └── {sample}_refstats.txt                  # Per-reference match statistics
 │   │   └── logs/
 │   │       ├── clean_headers/
 │   │       │   └── clean_headers.log                          # Aggregated header cleaning logs
@@ -225,6 +230,12 @@ output_dir/
 │       │       ├── {sample}_fastp_report.html                 # FastP HTML report
 │       │       ├── {sample}_fastp_report.json                 # FastP JSON report
 │       │       └── {sample}_concat.fastq_trimming_report.txt  # Trim Galore report
+│       ├── contaminant_screen/                            # Only if contaminant_screen.enabled = true
+│       │   └── {sample}/
+│       │       ├── {sample}_contaminant_R1.fastq.gz       # R1 reads matching contaminant references
+│       │       ├── {sample}_contaminant_R2.fastq.gz       # R2 reads matching contaminant references
+│       │       ├── {sample}_contaminant_stats.txt         # BBDuk summary statistics
+│       │       └── {sample}_refstats.txt                  # Per-reference match statistics
 │       └── logs/
 │           ├── concat/
 │           │   └── concat_reads.log                           # Aggregated concatenation logs
