@@ -43,7 +43,10 @@ fasta_cleaner:
   human_threshold: 0.95                          # Threshold at which reads are removed due to similarity with human COI
   at_difference: 0.1                             # Threshold at which reads are removed due to AT content variation
   at_mode: "absolute"                            # At content filtering mode (Absolute/Higher/Lower)
-  outlier_percentile: 90.0                       # Threshold at which reads are flagged as statistical outliers to the consensus and removed
+  outlier_percentile: 90.0                       # Percentile threshold for outlier detection. When run_gene_fetch is true, deviation is measured
+                                               # against the gene fetch protein reference (03_outlier_filter_reference_seq.py); otherwise a
+                                               # self-derived consensus is used (03_statistical_outlier_filter.py). In both cases sequences
+                                               # whose deviation score exceeds this percentile are removed as non-target outliers.
   reference_dir: null                            # Path to directory containing references for filtering (set to null/none if omitting step)
   reference_filter_mode: "remove_similar"        # Filter mode: "keep_similar" (remove outliers) or "remove_similar" (remove sequences similar to reference)
 

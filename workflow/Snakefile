@@ -1481,41 +1481,89 @@ rule at_content_filter_merge:
 	        2>&1 | tee {log}
         """
 
-rule statistical_outlier_filter_merge:
-    input:
-        filtered_files=os.path.join(barcode_recovery_dir_merge, "fasta_cleaner/02_at_filtered/at_filtered.txt")
-    output:
-        filtered_files=os.path.join(barcode_recovery_dir_merge, "fasta_cleaner/03_outlier_filtered/outlier_filtered.txt"),
-        summary_metrics=os.path.join(barcode_recovery_dir_merge, "fasta_cleaner/03_outlier_filtered/outlier_filter_summary_metrics.csv"),
-        individual_metrics=os.path.join(barcode_recovery_dir_merge, "fasta_cleaner/03_outlier_filtered/outlier_filter_individual_metrics.csv")
-    params:
-        script=os.path.join(workflow.basedir, "scripts/03_statistical_outlier_filter.py"),
-        output_dir=os.path.join(barcode_recovery_dir_merge, "fasta_cleaner/03_outlier_filtered"),
-        outlier_percentile=fasta_cleaner_params["outlier_percentile"],
-        consensus_threshold=fasta_cleaner_params["consensus_threshold"]
-    log:
-        os.path.join(barcode_recovery_dir_merge, "logs/fasta_cleaner/03_outlier_filter.log")
-    threads: rule_resources["statistical_outlier_filter"]["threads"]
-    resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["statistical_outlier_filter"]["mem_mb"] * attempt
-    retries: 2
-    shell:
-        """
-        set -euo pipefail
+if run_gene_fetch:
+    # Reference-based outlier filter: uses the per-sample protein reference
+    # retrieved by gene fetch to detect non-target sequences (e.g. fungal
+    # reads in an insect dataset) without needing a self-derived consensus.
+    rule statistical_outlier_filter_merge:
+        input:
+            filtered_files=os.path.join(barcode_recovery_dir_merge, "fasta_cleaner/02_at_filtered/at_filtered.txt"),
+            protein_refs=expand(
+                os.path.join(main_output_dir, "02_references/protein/{sample}.fasta"),
+                sample=list(samples.keys())
+            )
+        output:
+            filtered_files=os.path.join(barcode_recovery_dir_merge, "fasta_cleaner/03_outlier_filtered/outlier_filtered.txt"),
+            summary_metrics=os.path.join(barcode_recovery_dir_merge, "fasta_cleaner/03_outlier_filtered/outlier_filter_summary_metrics.csv"),
+            individual_metrics=os.path.join(barcode_recovery_dir_merge, "fasta_cleaner/03_outlier_filtered/outlier_filter_individual_metrics.csv")
+        params:
+            script=os.path.join(workflow.basedir, "scripts/03_outlier_filter_reference_seq.py"),
+            output_dir=os.path.join(barcode_recovery_dir_merge, "fasta_cleaner/03_outlier_filtered"),
+            reference_dir=os.path.join(main_output_dir, "02_references/protein"),
+            outlier_percentile=fasta_cleaner_params["outlier_percentile"],
+            genetic_code=config["C"]
+        log:
+            os.path.join(barcode_recovery_dir_merge, "logs/fasta_cleaner/03_outlier_filter.log")
+        threads: rule_resources["statistical_outlier_filter"]["threads"]
+        resources:
+            mem_mb=lambda wildcards, attempt: rule_resources["statistical_outlier_filter"]["mem_mb"] * attempt
+        retries: 2
+        shell:
+            """
+            set -euo pipefail
 
-        mkdir -p {params.output_dir}
-        
-        python {params.script} \\
-            --input-files-list {input.filtered_files} \\
-            --output-dir {params.output_dir} \\
-            --filtered-files-list {output.filtered_files} \\
-            --summary-csv {output.individual_metrics} \\
-            --metrics-csv {output.summary_metrics} \\
-            --outlier-percentile {params.outlier_percentile} \\
-            --consensus-threshold {params.consensus_threshold} \\
-            --threads {threads} \\
-            2>&1 | tee {log}
-        """
+            mkdir -p {params.output_dir}
+
+            python {params.script} \\
+                --input-files-list {input.filtered_files} \\
+                --output-dir {params.output_dir} \\
+                --filtered-files-list {output.filtered_files} \\
+                --summary-csv {output.summary_metrics} \\
+                --metrics-csv {output.individual_metrics} \\
+                --reference-dir {params.reference_dir} \\
+                --outlier-percentile {params.outlier_percentile} \\
+                --genetic-code {params.genetic_code} \\
+                --threads {threads} \\
+                2>&1 | tee {log}
+            """
+else:
+    # Consensus-based outlier filter: generates a consensus from the reads
+    # themselves and removes sequences that deviate statistically from it.
+    rule statistical_outlier_filter_merge:
+        input:
+            filtered_files=os.path.join(barcode_recovery_dir_merge, "fasta_cleaner/02_at_filtered/at_filtered.txt")
+        output:
+            filtered_files=os.path.join(barcode_recovery_dir_merge, "fasta_cleaner/03_outlier_filtered/outlier_filtered.txt"),
+            summary_metrics=os.path.join(barcode_recovery_dir_merge, "fasta_cleaner/03_outlier_filtered/outlier_filter_summary_metrics.csv"),
+            individual_metrics=os.path.join(barcode_recovery_dir_merge, "fasta_cleaner/03_outlier_filtered/outlier_filter_individual_metrics.csv")
+        params:
+            script=os.path.join(workflow.basedir, "scripts/03_statistical_outlier_filter.py"),
+            output_dir=os.path.join(barcode_recovery_dir_merge, "fasta_cleaner/03_outlier_filtered"),
+            outlier_percentile=fasta_cleaner_params["outlier_percentile"],
+            consensus_threshold=fasta_cleaner_params["consensus_threshold"]
+        log:
+            os.path.join(barcode_recovery_dir_merge, "logs/fasta_cleaner/03_outlier_filter.log")
+        threads: rule_resources["statistical_outlier_filter"]["threads"]
+        resources:
+            mem_mb=lambda wildcards, attempt: rule_resources["statistical_outlier_filter"]["mem_mb"] * attempt
+        retries: 2
+        shell:
+            """
+            set -euo pipefail
+
+            mkdir -p {params.output_dir}
+
+            python {params.script} \\
+                --input-files-list {input.filtered_files} \\
+                --output-dir {params.output_dir} \\
+                --filtered-files-list {output.filtered_files} \\
+                --summary-csv {output.individual_metrics} \\
+                --metrics-csv {output.summary_metrics} \\
+                --outlier-percentile {params.outlier_percentile} \\
+                --consensus-threshold {params.consensus_threshold} \\
+                --threads {threads} \\
+                2>&1 | tee {log}
+            """
 
 if use_reference_filtering:
     # Version WITH reference filtering - MERGE MODE
@@ -1760,41 +1808,84 @@ rule at_content_filter_concat:
 	        2>&1 | tee {log}
         """
 
-rule statistical_outlier_filter_concat:
-    input:
-        filtered_files=os.path.join(barcode_recovery_dir_concat, "fasta_cleaner/02_at_filtered/at_filtered.txt")
-    output:
-        filtered_files=os.path.join(barcode_recovery_dir_concat, "fasta_cleaner/03_outlier_filtered/outlier_filtered.txt"),
-        summary_metrics=os.path.join(barcode_recovery_dir_concat, "fasta_cleaner/03_outlier_filtered/outlier_filter_summary_metrics.csv"),
-        individual_metrics=os.path.join(barcode_recovery_dir_concat, "fasta_cleaner/03_outlier_filtered/outlier_filter_individual_metrics.csv")
-    params:
-        script=os.path.join(workflow.basedir, "scripts/03_statistical_outlier_filter.py"),
-        output_dir=os.path.join(barcode_recovery_dir_concat, "fasta_cleaner/03_outlier_filtered"),
-        outlier_percentile=fasta_cleaner_params["outlier_percentile"],
-        consensus_threshold=fasta_cleaner_params["consensus_threshold"]
-    log:
-        os.path.join(barcode_recovery_dir_concat, "logs/fasta_cleaner/03_outlier_filter.log")
-    threads: rule_resources["statistical_outlier_filter"]["threads"]
-    resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["statistical_outlier_filter"]["mem_mb"] * attempt
-    retries: 2
-    shell:
-        """
-        set -euo pipefail
+if run_gene_fetch:
+    rule statistical_outlier_filter_concat:
+        input:
+            filtered_files=os.path.join(barcode_recovery_dir_concat, "fasta_cleaner/02_at_filtered/at_filtered.txt"),
+            protein_refs=expand(
+                os.path.join(main_output_dir, "02_references/protein/{sample}.fasta"),
+                sample=list(samples.keys())
+            )
+        output:
+            filtered_files=os.path.join(barcode_recovery_dir_concat, "fasta_cleaner/03_outlier_filtered/outlier_filtered.txt"),
+            summary_metrics=os.path.join(barcode_recovery_dir_concat, "fasta_cleaner/03_outlier_filtered/outlier_filter_summary_metrics.csv"),
+            individual_metrics=os.path.join(barcode_recovery_dir_concat, "fasta_cleaner/03_outlier_filtered/outlier_filter_individual_metrics.csv")
+        params:
+            script=os.path.join(workflow.basedir, "scripts/03_outlier_filter_reference_seq.py"),
+            output_dir=os.path.join(barcode_recovery_dir_concat, "fasta_cleaner/03_outlier_filtered"),
+            reference_dir=os.path.join(main_output_dir, "02_references/protein"),
+            outlier_percentile=fasta_cleaner_params["outlier_percentile"],
+            genetic_code=config["C"]
+        log:
+            os.path.join(barcode_recovery_dir_concat, "logs/fasta_cleaner/03_outlier_filter.log")
+        threads: rule_resources["statistical_outlier_filter"]["threads"]
+        resources:
+            mem_mb=lambda wildcards, attempt: rule_resources["statistical_outlier_filter"]["mem_mb"] * attempt
+        retries: 2
+        shell:
+            """
+            set -euo pipefail
 
-        mkdir -p {params.output_dir}
-        
-        python {params.script} \\
-            --input-files-list {input.filtered_files} \\
-            --output-dir {params.output_dir} \\
-            --filtered-files-list {output.filtered_files} \\
-            --summary-csv {output.individual_metrics} \\
-            --metrics-csv {output.summary_metrics} \\
-            --outlier-percentile {params.outlier_percentile} \\
-            --consensus-threshold {params.consensus_threshold} \\
-            --threads {threads} \\
-            2>&1 | tee {log}
-        """
+            mkdir -p {params.output_dir}
+
+            python {params.script} \\
+                --input-files-list {input.filtered_files} \\
+                --output-dir {params.output_dir} \\
+                --filtered-files-list {output.filtered_files} \\
+                --summary-csv {output.summary_metrics} \\
+                --metrics-csv {output.individual_metrics} \\
+                --reference-dir {params.reference_dir} \\
+                --outlier-percentile {params.outlier_percentile} \\
+                --genetic-code {params.genetic_code} \\
+                --threads {threads} \\
+                2>&1 | tee {log}
+            """
+else:
+    rule statistical_outlier_filter_concat:
+        input:
+            filtered_files=os.path.join(barcode_recovery_dir_concat, "fasta_cleaner/02_at_filtered/at_filtered.txt")
+        output:
+            filtered_files=os.path.join(barcode_recovery_dir_concat, "fasta_cleaner/03_outlier_filtered/outlier_filtered.txt"),
+            summary_metrics=os.path.join(barcode_recovery_dir_concat, "fasta_cleaner/03_outlier_filtered/outlier_filter_summary_metrics.csv"),
+            individual_metrics=os.path.join(barcode_recovery_dir_concat, "fasta_cleaner/03_outlier_filtered/outlier_filter_individual_metrics.csv")
+        params:
+            script=os.path.join(workflow.basedir, "scripts/03_statistical_outlier_filter.py"),
+            output_dir=os.path.join(barcode_recovery_dir_concat, "fasta_cleaner/03_outlier_filtered"),
+            outlier_percentile=fasta_cleaner_params["outlier_percentile"],
+            consensus_threshold=fasta_cleaner_params["consensus_threshold"]
+        log:
+            os.path.join(barcode_recovery_dir_concat, "logs/fasta_cleaner/03_outlier_filter.log")
+        threads: rule_resources["statistical_outlier_filter"]["threads"]
+        resources:
+            mem_mb=lambda wildcards, attempt: rule_resources["statistical_outlier_filter"]["mem_mb"] * attempt
+        retries: 2
+        shell:
+            """
+            set -euo pipefail
+
+            mkdir -p {params.output_dir}
+
+            python {params.script} \\
+                --input-files-list {input.filtered_files} \\
+                --output-dir {params.output_dir} \\
+                --filtered-files-list {output.filtered_files} \\
+                --summary-csv {output.individual_metrics} \\
+                --metrics-csv {output.summary_metrics} \\
+                --outlier-percentile {params.outlier_percentile} \\
+                --consensus-threshold {params.consensus_threshold} \\
+                --threads {threads} \\
+                2>&1 | tee {log}
+            """
 		
 if use_reference_filtering:
     # Version WITH reference filtering - CONCAT MODE  
