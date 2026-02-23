@@ -91,14 +91,9 @@ structural_validation:
 run_taxonomic_validation: true  # If run_structural_validation == false, run_taxonomic_validation MUST also == false (default: true)
 taxonomic_validation:
     # Path to directory containing BLASTn DB, or to a specific FASTA file to make a BLAST DB from (using makeblastdb)
-    database: "/path/to/databases/BOLDistilled/"
-    ##BOLDISTILLED="/home/dparsons/projects/nhm/museomix/BGE/databases/BOLDistilled/"
-    ##RBCL_DB="/home/dparsons/scratch/rbcl_blast_database_construction/QIIME2_RefDB_development_2025_update-dubois2022/"
-    
+    database: "/path/to/databases/BOLDistilled/"   
+    # Path to taxonomic lineages associated with specified BLASTn DB
     database_taxonomy: "/path/to/databases/BOLDistilled/BOLDistilled_taxonomy/source/BOLDistilled_COI_*_TAXONOMY.tsv"
-    ##BOLDISTILLED = "/home/dparsons/projects/nhm/museomix/BGE/databases/BOLDistilled/BOLDistilled_taxonomy/source/BOLDistilled_COI_Jul2025_TAXONOMY.tsv"
-    ##RBCL_TAXONOMY = "/home/dparsons/scratch/rbcl_blast_database_construction/QIIME2_RefDB_development_2025_update-dubois2022/NCBI_rbcL_Viridiplantae_taxonomic_lineages_dereplicated_2025_07_01.tsv"
-    
     taxval_rank: "family"   # Taxonomic rank for validation (phylum, class, order, family, genus, species) (default & recommended: family)
     # Expected taxonomy file must contain the following columns: ID,phylum,class,order,family,genus,speces. ID must equal 'ID' from samples_file above
     expected_taxonomy: "/path/to/expected_taxonomic_lineages.csv"
