@@ -30,7 +30,7 @@ gene_fetch:
 ## Contaminant screening parameters (BBDuk)
 contaminant_screen:
   enabled: true                 # Set to true to enable contaminant screening with BBDuk (default: false)
-  contam_seqs: ""               # Path to contaminant reference sequences FASTA file. Default (if left empty): resources/contaminants/contaminants.fasta
+  contam_seqs: "/resources/contaminants/contaminants.fasta.gz"               # Path to contaminant reference sequences FASTA file (Default: resources/contaminants/contaminants.fasta.gz)
   k: 31                         # k-mer size for contaminant matching (default: 31)
 
 
@@ -66,7 +66,7 @@ t: 0.5
 # human coi filtering -> at content filtering -> statistical outlier filtering -> (optional) reference-base filtering -> 'cleaned' consensus generation
 # Default parameters
 fasta_cleaner:
-  human_genome: ""              # Path to human mitogenome FASTA reference. Default (if left empty): resources/contaminants/human_mitogenome.fasta
+  human_genome: "/resources/contaminants/human_mitogenome.fasta"              # Path to human mitogenome FASTA reference (Default: resources/contaminants/human_mitogenome.fasta)
   aligner: "bwa-aln"            # Alignment tool for human mitogenome filtering: minimap2, bwa-mem, bwa-aln (default: bwa-aln)
   save_removed: true           # Save removed (human-mapped) sequences to removed/ subdirectory (default: false)
   consensus_threshold: 0.5      # Threshold at which bases at each position must 'agree' to be incldued in the consensus (0.5 = ≥50% of bases at each position must agree)
