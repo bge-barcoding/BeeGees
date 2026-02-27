@@ -1,17 +1,17 @@
 # config/config.yaml
 
 ## General BeeGees pipeline parameters and paths
-run_name: "UK008"                        # BeeGees run name identifier
-mge_path: "/home/dparsons/apps/MitoGeneExtractor/MitoGeneExtractor-v1.9.6"            # Path to MGE installation (MitoGeneExtractor-vX.X.X file)
-samples_file: "/home/dparsons/projects/nhm/museomix/UKBOL_accelerated/sample_sheets/samples_UK008/samples_UK008.csv"              # Path to samples.csv
-sequence_reference_file: ""                      # Path to sequence_references.csv (leave path blank/empty if 'run_gene_fetch' == true)
-output_dir: "/mnt/shared/scratch/museomix/UKBOL_accelerated/BeeGees_output/UK008"          # Path to main output directory
+run_name: "RUN_1"                                                              # BeeGees run name identifier
+mge_path: "path/to/apps/MitoGeneExtractor/MitoGeneExtractor-v1.9.6"            # Path to MGE installation (MitoGeneExtractor-vX.X.X file)
+samples_file: "path/to/samples.csv"                                            # Path to samples.csv
+sequence_reference_file: ""                                                    # Path to sequence_references.csv (leave path blank/empty if 'run_gene_fetch' == true)
+output_dir: "path/to/BeeGees_output/RUN_1"                                     # Path to main output directory
 
 ## Gene Fetch parameters (https://github.com/bge-barcoding/gene_fetch), or using `gene-fetch --help`.
 run_gene_fetch: true  # Set true to use gene-fetch to generate reference sequences (default: true)
 gene_fetch:
-   email: "d.parsons@nhm.ac.uk"                            # Required: Email for NCBI API
-   api_key: "1866f9734a06f26bc5895a84387542ac9308"         # Required: NCBI API key
+   email: "example@example.ac.uk"                          # Required: Email for NCBI API
+   api_key: "123456"                                       # Required: NCBI API key
    gene: "coi"                                             # Target gene (e.g., cox1, rbcl, matk)
    minimum_length: "500"                                   # Minimum length of protein reference(s) to fetch (default: 500aa)
    input_type: "taxid"                                     # Does the 'samples.csv' contain a 'taxid' column or 'hierarchical' taxonomic information columns (default: taxid)? - see Gene Fetch docs for more detail
@@ -57,21 +57,20 @@ structural_validation:
 ## Taxonomic validation
 run_taxonomic_validation: true                   # If run_structural_validation == false, run_taxonomic_validation MUST also be false
 taxonomic_validation:
-    database: "/home/dparsons/projects/nhm/museomix/BGE/databases/BOLDistilled/"
-    database_taxonomy: "/home/dparsons/projects/nhm/museomix/BGE/databases/BOLDistilled/BOLDistilled_taxonomy/source/BOLDistilled_COI_Jul2025_TAXONOMY.tsv"
-    taxval_rank: "family"                        # Taxonomic rank for validation (phylum, class, order, family, genus, species) (default & recommended: family)
-    expected_taxonomy: "/home/dparsons/projects/nhm/museomix/UKBOL_accelerated/sample_sheets/samples_UK008/samples_UK008.csv"             # Path to CSV file containing hierarchical taxonomic lineage information for each sample.
-                                                 # It must contain the following columns: ID,phylum,class,order,family,genus,speces. ID must equal 'ID' from samples_file above
-    verbose: true                                # Enable verbose logging
-    min_pident: 80                               # Minimum percent identity (pident) threshold to be considered
-    min_length: 100                              # Minimum length of BLASTn alignment to be considered
+    database: "path/to/blastn/database/"
+    database_taxonomy: "path/to/blastn/database/associated_taxonomy.tsv"
+    taxval_rank: "family"                                       # Taxonomic rank for validation (phylum, class, order, family, genus, species) (default & recommended: family)
+    expected_taxonomy: "path/to/input_taxonomy.csv"             # Path to CSV file containing hierarchical taxonomic lineage information for each sample (containing ID,phylum,class,order,family,genus,speces. ID must equal 'ID' from samples_file above)
+    verbose: true                                               # Enable verbose logging
+    min_pident: 80                                              # Minimum percent identity (pident) threshold to be considered
+    min_length: 100                                             # Minimum length of BLASTn alignment to be considered
 
 ## Resource allocation for each rule. Memory shown in Mb (mem_mb), e.g. 2048 = 2G memory. Rules have dynamic memory scaling upon retry (mem_mb * retry #).
 rules:
   gene_fetch:                                    # Gene Fetch
     mem_mb: 8192
     threads: 4
-    partition: long
+    partition: PARTITION
   fastp_qc:                                      # Fastp (merge and concat modes)
     mem_mb: 16384
     threads: 4
@@ -89,7 +88,7 @@ rules:
   MitoGeneExtractor:                             # MitoGeneExtractor (concat and merge mode)
     mem_mb: 32768
     threads: 8
-    partition: himem
+    partition: PARTITION
   rename_and_combine_cons:                       # Clean and rename fasta headers
     mem_mb: 8192
     threads: 4
@@ -114,11 +113,11 @@ rules:
   structural_validation:                         # structural_validation.py
     mem_mb: 32768
     threads: 16
-    partition: himem
+    partition: PARTITION
   taxonomic_validation:                          # tv_local blast.py
     mem_mb: 51200
     threads: 32                                  # Minimum = 4 (4 threads given to each parallised BLASTn run)
-    partition: himem
+    partition: PARTITION
   blast2taxonomy:                                # tv_blast2taxonomy.py
     mem_mb: 16384
     threads: 4
