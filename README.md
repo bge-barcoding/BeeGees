@@ -26,15 +26,14 @@ Snakemake workflow for recovering high-quality barcode sequences at scale, built
 ---
 
 # Workflow #
-<div align="center">
-  <img width="1819" height="858" src="[https://github.com/user-attachments/assets/ad5f64e7-f253-4801-98fb-859a031de56b](https://github.com/user-attachments/assets/a28b7927-7e42-4b05-a67e-69f8bd82053e)">
-</div>
+<img width="1829" height="853" alt="image" src="https://github.com/user-attachments/assets/017062f4-51c1-43b3-b9fd-6277820b45e4" />
+
 
 
 1. **Preprocessing modes** — the pipeline automatically detects run mode from the samples.csv (see [Run mode detection](#Run-mode-detection) below):
    - **PE concat** _(paired-end)_: Adapter trimming, quality filtering, poly-G trimming, deduplication of paired-end reads using [fastp](https://github.com/OpenGene/fastp), followed by concatenation of R1+R2 reads, a secondary quality trimming with [TrimGalore](https://github.com/FelixKrueger/TrimGalore), and optional read downsampling.
    - **PE merge** _(paired-end)_: Quality control and merging of overlapping paired-end reads using [fastp](https://github.com/OpenGene/fastp), with header cleaning for MitoGeneExtractor compatibility, and optional read downsampling.
-   - **SE** _(single-end / Ultima Genomics)_: Adapter trimming, poly-X tail trimming, and deduplication of single-end reads using [fastp](https://github.com/OpenGene/fastp) with Ultima-specific settings. Only one preprocessing path runs (no merge or concat steps). _(new)_
+   - **SE** _(single-end / Ultima Genomics)_: Adapter trimming, poly-X tail trimming, and deduplication of single-end reads using [fastp](https://github.com/OpenGene/fastp) with Ultima-specific settings. Only one preprocessing path runs (no merge or concat steps).
 2. **Sample-specific reference retrieval**: Automated retrieval of taxonomically-appropriate protein reference sequences from GenBank using [Gene-Fetch](https://github.com/bge-barcoding/gene_fetch).
 3. **Barcode recovery**: Protein reference-guided extraction of barcode sequences from preprocessed reads using [MitoGeneExtractor](https://github.com/cmayer/MitoGeneExtractor), producing initial consensus sequences.
 4. **Consensus sequence preparation**: Header standardisation and concatenation of raw consensus sequences into multi-FASTA format for downstream processing.
@@ -71,7 +70,7 @@ Snakemake workflow for recovering high-quality barcode sequences at scale, built
 | BSNHM038-24 | abs/path/to/R1.fq.gz | abs/path/to/R2.fq.gz | 177627 |
 | BSNHM046-24 | abs/path/to/R1.fq.gz | abs/path/to/R2.fq.gz | 3084599 |
  
-**samples.csv example — single-end / Ultima (taxid)** _(new)_
+**samples.csv example — single-end / Ultima (taxid)**
 | ID | forward | taxid |
 | --- | --- | --- |
 | UK001-A01 | abs/path/to/reads.fq.gz | 177658 |
@@ -229,7 +228,7 @@ output_dir/
 │   │       ├── fastp/                                         # Individual FastP logs per sample
 │   │       ├── gzip/                                          # Compression logs per sample
 │   │       └── final_cleanup_complete.txt
-│   └── se_mode/                                               # SE/Ultima mode only (new)
+│   └── se_mode/                                               # SE/Ultima mode only
 │       ├── trimmed_data/
 │       │   └── {sample}/
 │       │       ├── {sample}_se_trimmed.fastq                  # Trimmed SE reads
@@ -322,7 +321,7 @@ output_dir/
 │   │   ├── out/
 │   │   ├── err/
 │   │   └── {run_name}_concat-stats.csv
-│   ├── se_mode/                                               # SE/Ultima mode only (new)
+│   ├── se_mode/                                               # SE/Ultima mode only
 │   │   ├── alignment/
 │   │   │   └── {sample}_r_{r}_s_{s}_align_{sample}.fas
 │   │   ├── consensus/
