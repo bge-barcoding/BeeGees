@@ -7,21 +7,13 @@
 #SBATCH --error=snakemake_run_%j.err
 
 ## Conda environment
-CONDA_BASE="${CONDA_BASE:-$(conda info --base 2>/dev/null)}"
- 
-if [ -z "$CONDA_BASE" ]; then
-    echo "ERROR: Cannot find conda. Please ensure conda is on your PATH or set CONDA_BASE."
-    exit 1
-fi
+source ~/apps/conda/etc/profile.d/conda.sh
 
-source "$CONDA_BASE/etc/profile.d/conda.sh"
- 
 conda activate BeeGees_env
-
 
 # Setup logging
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-VERSION="v2.0.0"
+VERSION="v3.0.0"
 PIPELINE="BeeGees Snakemake workflow"				
 LOG_FILE="snakemake_${TIMESTAMP}.log"
 CONFIG="./config/config.yaml"
@@ -47,8 +39,8 @@ log_with_timestamp "Conda environment: $CONDA_DEFAULT_ENV"
 log_with_timestamp "Unlocking Snakemake directory..."
 snakemake --profile "$PROFILE" \
     --snakefile ./workflow/Snakefile \
-	--configfile "$CONFIG" \
-	--unlock
+    --configfile "$CONFIG" \
+    --unlock
 
 # Run snakemake workflow with profile
 log_with_timestamp "Starting workflow execution..."
