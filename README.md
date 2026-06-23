@@ -459,3 +459,4 @@ Please feel free to submit issues, fork the repository, and create pull requests
 - Expand supported markers beyond COI-5P and rbcL. Will require marker-specific HMMs, BLAST databases and associated taxonomy files for barcode validation. Next likely marker to be added = MatK.
 - Update 01_human_cox1_filter.py so it does not solely filter aligned reads against human COI, but instead against the whole human mitogenome.
 - Integrate pre-MGE contamination screening step.
+- multiQC report improvements.
