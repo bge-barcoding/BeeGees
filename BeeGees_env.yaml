@@ -21,7 +21,7 @@ dependencies:
   - hmmer=3.4
   - blast=2.17.0
   - r=4.4
-  - r-tidyverse=2.2.0
+  - r-tidyverse=2.0.0
   - multiqc=1.35
   - parallel=20240922
   - pip=24.2
