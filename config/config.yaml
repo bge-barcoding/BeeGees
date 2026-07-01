@@ -84,7 +84,7 @@ structural_validation:
 ## Taxonomic validation
 run_taxonomic_validation: true                   # If run_structural_validation == false, run_taxonomic_validation MUST also be false
 taxonomic_validation:
-    database: "/home/dparsons/projects/nhm/museomix/BGE/databases/BOLDistilled/"
+    database: "/path/to/BOLDistilled/"
     database_taxonomy: "/PATH/TO/BOLDistilled/BOLDistilled_taxonomy/source/BOLDistilled_COI_Jul2025_TAXONOMY.tsv"
     taxval_rank: "family"                        # Taxonomic rank for validation (phylum, class, order, family, genus, species) (default & recommended: family)
     expected_taxonomy: "/PATH/TO/EXPECTED_TAXONOMY"
