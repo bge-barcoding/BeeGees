@@ -443,7 +443,7 @@ The barcode validation outputs are merged with pre-processing and barcode recove
 ## Cite BeeGees ##
 If you use BeeGees in your work, please cite:
  
-> Parsons, D., Sivess, L., Pearse, W.D., Price, B.W. (2025). BeeGees: A Snakemake pipeline for recovering DNA barcodes from genome skims of museum specimens. *Molecular Ecology Resources*. https://doi.org/10.1111/1755-0998.70170
+> Parsons, D. A. J., R. A. Vos, and B. W. Price. 2026. “BeeGees: A High-Throughput Protein-Coding DNA Barcode Recovery Pipeline Tailored for Genome Skims of Museum Specimens.” Molecular Ecology Resources26, no. 5: e70170. https://doi.org/10.1111/1755-0998.70170
  
 ## Cite MitoGeneExtractor ##
 Since BeeGees uses [MitoGeneExtractor](https://besjournals.onlinelibrary.wiley.com/doi/10.1111/2041-210X.14075) at its core, please also cite:
