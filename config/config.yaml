@@ -112,6 +112,9 @@ rules:
   quality_trim:                                  # Trim Galore (concat mode)
     mem_mb: 16384
     threads: 4
+  downsample:                                    # Downsampling via reformat.sh (concat/merge/se modes)
+    mem_mb: 8192
+    threads: 4
   MitoGeneExtractor:                             # MitoGeneExtractor (concat and merge mode)
     mem_mb: 32768
     threads: 8
