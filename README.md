@@ -7,7 +7,6 @@ Snakemake workflow for recovering high-quality barcode sequences at scale, built
 # Contents #
  - [Requirements](#Requirements)
  - [Workflow](#Workflow)
- - [Installation and set up](#Installation-and-set-up)
  - [Cluster configuration](#Cluster-configuration-using-Snakemake-profiles)
  - [Results structure](#Results-structure)
  - [Validation process](#Validation-process)
