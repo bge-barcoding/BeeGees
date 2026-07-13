@@ -2733,7 +2733,7 @@ rule extract_stats_to_csv_merge:
     params:
         script=os.path.join(workflow.basedir, "scripts/compile_barcoding_stats.py"),
         out_dir=os.path.join(barcode_recovery_dir_merge, "out/"),
-        log_dir=os.path.join(barcode_recovery_dir_merge, "logs/mge"),
+        log_dir=os.path.join(barcode_recovery_dir_merge, "logs/"),
         ref_seqs_arg=lambda wildcards, input: f"--ref_seqs {input.ref_seqs}" if run_gene_fetch else ""
     threads: rule_resources["extract_stats_to_csv"]["threads"]
     resources:
@@ -2743,9 +2743,7 @@ rule extract_stats_to_csv_merge:
         """
         set -euo pipefail
         # Run script
-        python {params.script} -a {input.alignment_log} -o {output.stats} -od {params.out_dir} -c {input.cleaning_csv} {params.ref_seqs_arg} --pre-fasta {input.pre_fasta} --post-fasta {input.post_fasta}
-        # Relocate logs
-        mv compile_barcoding_stats.log {params.log_dir}/
+        python {params.script} -a {input.alignment_log} -o {output.stats} -od {params.out_dir} -c {input.cleaning_csv} {params.ref_seqs_arg} --pre-fasta {input.pre_fasta} --post-fasta {input.post_fasta} --log-file {params.log_dir}/compile_barcoding_stats.log
         """
 
 rule extract_stats_to_csv_concat:
@@ -2767,7 +2765,7 @@ rule extract_stats_to_csv_concat:
     params:
         script=os.path.join(workflow.basedir, "scripts/compile_barcoding_stats.py"),
         out_dir=os.path.join(barcode_recovery_dir_concat, "out/"),
-        log_dir=os.path.join(barcode_recovery_dir_concat, "logs/mge"),
+        log_dir=os.path.join(barcode_recovery_dir_concat, "logs/"),
         ref_seqs_arg=lambda wildcards, input: f"--ref_seqs {input.ref_seqs}" if run_gene_fetch else ""
     threads: rule_resources["extract_stats_to_csv"]["threads"]
     resources:
@@ -2777,9 +2775,7 @@ rule extract_stats_to_csv_concat:
         """
         set -euo pipefail
         # Run script
-        python {params.script} -a {input.alignment_log} -o {output.stats} -od {params.out_dir} -c {input.cleaning_csv} {params.ref_seqs_arg} --pre-fasta {input.pre_fasta} --post-fasta {input.post_fasta}
-        # Relocate logs
-        mv compile_barcoding_stats.log {params.log_dir}/
+        python {params.script} -a {input.alignment_log} -o {output.stats} -od {params.out_dir} -c {input.cleaning_csv} {params.ref_seqs_arg} --pre-fasta {input.pre_fasta} --post-fasta {input.post_fasta} --log-file {params.log_dir}/compile_barcoding_stats.log
         """
 
 def combine_stats_inputs(wildcards):
@@ -3768,7 +3764,7 @@ rule extract_stats_to_csv_se:
     params:
         script=os.path.join(workflow.basedir, "scripts/compile_barcoding_stats.py"),
         out_dir=os.path.join(barcode_recovery_dir_se, "out/"),
-        log_dir=os.path.join(barcode_recovery_dir_se, "logs/mge"),
+        log_dir=os.path.join(barcode_recovery_dir_se, "logs/"),
         ref_seqs_arg=lambda wildcards, input: f"--ref_seqs {input.ref_seqs}" if run_gene_fetch else ""
     threads: rule_resources["extract_stats_to_csv"]["threads"]
     resources:
@@ -3777,6 +3773,5 @@ rule extract_stats_to_csv_se:
     shell:
         """
         set -euo pipefail
-        python {params.script} -a {input.alignment_log} -o {output.stats} -od {params.out_dir} -c {input.cleaning_csv} {params.ref_seqs_arg} --pre-fasta {input.pre_fasta} --post-fasta {input.post_fasta}
-        mv compile_barcoding_stats.log {params.log_dir}/
+        python {params.script} -a {input.alignment_log} -o {output.stats} -od {params.out_dir} -c {input.cleaning_csv} {params.ref_seqs_arg} --pre-fasta {input.pre_fasta} --post-fasta {input.post_fasta} --log-file {params.log_dir}/compile_barcoding_stats.log
         """
