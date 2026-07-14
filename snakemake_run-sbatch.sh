@@ -13,7 +13,7 @@ conda activate BeeGees_env
 
 # Setup logging
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-VERSION="v3.0.0"
+VERSION="v3.0.1"
 PIPELINE="BeeGees Snakemake workflow"				
 LOG_FILE="snakemake_${TIMESTAMP}.log"
 CONFIG="./config/config.yaml"
@@ -30,7 +30,6 @@ log_with_timestamp "Pipeline: $PIPELINE"
 log_with_timestamp "Version: $VERSION"
 log_with_timestamp "Log file: $LOG_FILE"
 log_with_timestamp "Running on: $(hostname)"
-log_with_timestamp "Screen session: $STY"
 log_with_timestamp "Working directory: $(pwd)"
 log_with_timestamp "Conda environment: $CONDA_DEFAULT_ENV"
 
