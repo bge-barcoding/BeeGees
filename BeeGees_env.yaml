@@ -4,7 +4,7 @@ channels:
   - bioconda
 dependencies:
   - git=2.45.2
-  - exonerate=2.4.0
+  - mitogeneextractor=1.9.6
   - mamba=1.5.8
   - python=3.11.11
   - snakemake=9.9.0

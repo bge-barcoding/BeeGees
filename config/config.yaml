@@ -2,8 +2,6 @@
 
 # BeeGees run name identifier
 run_name: "RUN1"
-# Path to MGE installation (MitoGeneExtractor-vX.X.X file)
-mge_path: "/PATH/TO/MitoGeneExtractor/MitoGeneExtractor-v1.9.6"
 # Path to samples.csv
 samples_file: "/PATH/TO/SAMPLES.CSV"
 # Path to sequence_references.csv (leave path blank/empty if 'run_gene_fetch' == true)

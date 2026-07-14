@@ -14,26 +14,37 @@ from threading import Lock
 from pathlib import Path
 
 
+# Name of the MitoGeneExtractor executable provided on PATH by the BeeGees conda
+# environment (the bioconda 'mitogeneextractor' package). MGE is no longer
+# referenced via a user-supplied 'mge_path' in the config; it is resolved from
+# the active conda environment instead. If the bioconda package exposes the
+# command under a different name, update this single constant.
+MGE_EXECUTABLE = "MitoGeneExtractor"
+
 
 # ===== CONFIGURATION VALIDATION =====
 def validate_config(config):
     """Validate all configuration parameters"""
-    required_keys = ['samples_file', 'output_dir', 'r', 's', 'run_name', 'mge_path']
+    required_keys = ['samples_file', 'output_dir', 'r', 's', 'run_name']
     missing_keys = [key for key in required_keys if key not in config]
-    
+
     if missing_keys:
         sys.stderr.write(f"WARNING: Missing required configuration keys: {', '.join(missing_keys)}\n")
         sys.exit(1)
-    
+
     # Validate file existence
     if not os.path.exists(config['samples_file']):
         sys.stderr.write(f"WARNING: Samples file not found: {config['samples_file']}\n")
         sys.exit(1)
-    
-    if not os.path.exists(config['mge_path']):
-        sys.stderr.write(f"WARNING: MitoGeneExtractor path not found: {config['mge_path']}\n")
+
+    # Validate MitoGeneExtractor is available on PATH (installed via the
+    # BeeGees conda environment, i.e. the bioconda 'mitogeneextractor' package).
+    if shutil.which(MGE_EXECUTABLE) is None:
+        sys.stderr.write(
+            f"WARNING: MitoGeneExtractor executable '{MGE_EXECUTABLE}' not found on PATH. "
+            f"Ensure the BeeGees conda environment (with the 'mitogeneextractor' package) is activated.\n")
         sys.exit(1)
-    
+
     # Validate r and s parameters
     if not isinstance(config['r'], list) or not config['r']:
         sys.stderr.write("WARNING: 'r' must be a non-empty list\n")
@@ -264,7 +275,6 @@ def parse_sequence_references(sequence_reference_file):
 # Path configuration
 samples = parse_samples(config["samples_file"])
 run_name = config["run_name"]
-mge_path = config["mge_path"]
 
 # Fastp configuration
 # Default adapters (Illumina TruSeq) are used if not specified in config.
@@ -1253,7 +1263,7 @@ rule MitoGeneExtractor_merge:
         out=os.path.join(barcode_recovery_dir_merge, "out/{sample}_r_{r}_s_{s}_summary.out"),
         err=os.path.join(barcode_recovery_dir_merge, "err/{sample}_r_{r}_s_{s}_summary.err")
     params:
-        mge_executor=config["mge_path"],
+        mge_executor=MGE_EXECUTABLE,
         n=config["n"],
         C=config["C"],
         t=config["t"],
@@ -1402,7 +1412,7 @@ rule MitoGeneExtractor_concat:
         out=os.path.join(barcode_recovery_dir_concat, "out/{sample}_r_{r}_s_{s}_summary.out"),
         err=os.path.join(barcode_recovery_dir_concat, "err/{sample}_r_{r}_s_{s}_summary.err")
     params:
-        mge_executor=config["mge_path"],
+        mge_executor=MGE_EXECUTABLE,
         n=config["n"],
         C=config["C"],
         t=config["t"],
@@ -3236,7 +3246,7 @@ rule MitoGeneExtractor_se:
         out=os.path.join(barcode_recovery_dir_se, "out/{sample}_r_{r}_s_{s}_summary.out"),
         err=os.path.join(barcode_recovery_dir_se, "err/{sample}_r_{r}_s_{s}_summary.err")
     params:
-        mge_executor=config["mge_path"],
+        mge_executor=MGE_EXECUTABLE,
         n=config["n"],
         C=config["C"],
         t=config["t"],
