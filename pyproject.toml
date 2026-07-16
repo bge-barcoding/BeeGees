@@ -5,21 +5,22 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "beegees"
 version = "3.0.2"
-description = "BeeGees: DNA barcoding from genome skims via Snakemake"
+description = "BeeGees: DNA barcoding from museum specimen genome skims via Snakemake"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
-authors = [{ name = "Natural History Museum", email = "d.parsons@nhm.ac.uk" }]
+authors = [
+    {name = "Dan A.J. Parsons", email = "d.parsons@nhm.ac.uk"},
+    {name = "Rutger A. Vos", email = "b.price@nhm.ac.uk"},
+    {name = "Ben W. Price", email = "rutger.vos@naturalis.nl" },
+]
+
 keywords = ["bioinformatics", "dna-barcoding", "snakemake", "genomics", "museum-specimens"]
 classifiers = [
-    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
 ]
 dependencies = []
 
