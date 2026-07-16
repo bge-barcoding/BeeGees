@@ -66,7 +66,7 @@ def build_parser():
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    # beegees init — optional convenience for human users
+    # beegees init — optional convenience for CLI users
     p_init = sub.add_parser(
         "init",
         help="Copy template config/ and profiles/ to the current directory.",
