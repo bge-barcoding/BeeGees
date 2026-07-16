@@ -92,6 +92,14 @@ taxonomic_validation:
     min_length: 100                              # Minimum length of BLASTn alignment to be considered (0-100)
 
 
+## NCBI taxonomy dump directory
+# Used by the download_taxdump rule and multiqc_plots.
+# Defaults to resources/ncbi_taxdump/ inside your working directory.
+# Override this when running BeeGees as a pip-installed package or when a
+# pre-downloaded dump should be reused across runs.
+# taxdump_dir: "/path/to/writable/ncbi_taxdump"
+
+
 ## Resource allocation for each rule. Memory shown in Mb (mem_mb), e.g. 2048 = 2G memory. Rules have dynamic memory scaling upon retry (mem_mb * retry #).
 rules:
   gene_fetch:                                    # Gene Fetch

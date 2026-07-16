@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "beegees"
+version = "3.0.2"
+description = "BeeGees: DNA barcoding from genome skims via Snakemake"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [{ name = "Natural History Museum", email = "d.parsons@nhm.ac.uk" }]
+keywords = ["bioinformatics", "dna-barcoding", "snakemake", "genomics", "museum-specimens"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = []
+
+[project.scripts]
+beegees = "beegees.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/bge-barcoding/BeeGees"
+Repository = "https://github.com/bge-barcoding/BeeGees"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["beegees*"]
+
+[tool.setuptools.package-data]
+beegees = [
+    "workflow/Snakefile",
+    "workflow/scripts/*",
+    "resources/**/*",
+    "config/*",
+    "profiles/**/*",
+]
