@@ -24,6 +24,9 @@ classifiers = [
 ]
 dependencies = []
 
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
 [project.scripts]
 beegees = "beegees.__main__:main"
 
