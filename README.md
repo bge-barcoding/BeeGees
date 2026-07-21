@@ -138,7 +138,7 @@ genbank: Download complete GenBank records of retrieved protein pseudo-reference
 
 ## Downsampling parameters
 enabled: Set to true to enable downsampling (default: false)
-max_reads: Maximum number of read PAIRS to process for PE mode (e.g. 25M read pairs = 50M reads in total). For SE mode, this is the maximum number of reads directly. For either mode, setting this to zero is equivalent to 'enabled: false'
+max_reads: Maximum number of reads/read-pairs to subsample to, passed directly to reformat.sh. For SE mode this = number of individual reads; for PE mode this = number of read PAIRS (e.g. max_reads: 10000000 gives 10M reads for SE, or 10M pairs / 20M individual reads for PE). Set to 0 to disable.
 
 ## MitoGeneExtractor parameters (https://github.com/cmayer/MitoGeneExtractor/tree/main?tab=readme-ov-file#command-line-options)
 r: Exonerate relative score threshold parameter
