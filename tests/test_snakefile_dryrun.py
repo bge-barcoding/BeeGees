@@ -38,13 +38,20 @@ def minimal_run(tmp_path):
     samples = tmp_path / "samples.csv"
     samples.write_text(f"ID,forward,reverse\nSAMPLE01,{r1},{r2}\n")
 
+    # sequence_references.csv — required when run_gene_fetch: false.
+    # parse_sequence_references() expects ID and protein_reference_path columns.
+    protein_ref = tmp_path / "SAMPLE01_protein_ref.fasta"
+    protein_ref.write_bytes(b"")
+    seq_refs = tmp_path / "sequence_references.csv"
+    seq_refs.write_text(f"ID,protein_reference_path\nSAMPLE01,{protein_ref}\n")
+
     # Minimal config pointing at the fake samples file
     config_text = textwrap.dedent(f"""\
         run_name: "DRYRUN_TEST"
         samples_file: "{samples}"
         output_dir: "{tmp_path / 'output'}"
         run_gene_fetch: false
-        sequence_reference_file: "{samples}"
+        sequence_reference_file: "{seq_refs}"
 
         fastp:
           adapter_r1: ""
