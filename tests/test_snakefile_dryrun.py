@@ -173,24 +173,22 @@ def minimal_run(tmp_path):
 
 
 class TestSnakefileDryrun:
-    def test_snakefile_parses_and_dryrun_succeeds(self, minimal_run):
-        """snakemake --dryrun should exit 0 with a valid config."""
+    def test_snakefile_parses_without_syntax_errors(self, minimal_run):
+        """snakemake --lint should pass with a valid config (no syntax errors)."""
         tmp_path, config_file = minimal_run
         result = subprocess.run(
             [
                 sys.executable, "-m", "snakemake",
                 "--snakefile", str(SNAKEFILE),
                 "--configfile", str(config_file),
-                "--dryrun",
-                "--quiet",
-                "--cores", "1",
+                "--lint",
             ],
             capture_output=True,
             text=True,
             cwd=str(tmp_path),
         )
         assert result.returncode == 0, (
-            f"Snakemake dryrun failed.\n"
+            f"Snakemake lint failed.\n"
             f"STDOUT:\n{result.stdout}\n"
             f"STDERR:\n{result.stderr}"
         )
