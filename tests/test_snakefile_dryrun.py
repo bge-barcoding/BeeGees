@@ -27,9 +27,16 @@ SNAKEFILE = Path(__file__).parent.parent / "workflow" / "Snakefile"
 @pytest.fixture()
 def minimal_run(tmp_path):
     """Create the minimum files needed for a Snakemake dryrun."""
-    # samples.csv with one fake sample
+    # Create dummy fastq.gz files — Snakemake --dryrun still requires source
+    # input files (those not produced by any rule) to exist on disk.
+    r1 = tmp_path / "SAMPLE01_R1.fastq.gz"
+    r2 = tmp_path / "SAMPLE01_R2.fastq.gz"
+    r1.write_bytes(b"")
+    r2.write_bytes(b"")
+
+    # samples.csv pointing at the real (empty) dummy files
     samples = tmp_path / "samples.csv"
-    samples.write_text("ID,forward,reverse\nSAMPLE01,/data/r1.fastq.gz,/data/r2.fastq.gz\n")
+    samples.write_text(f"ID,forward,reverse\nSAMPLE01,{r1},{r2}\n")
 
     # Minimal config pointing at the fake samples file
     config_text = textwrap.dedent(f"""\
