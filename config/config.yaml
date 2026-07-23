@@ -42,20 +42,19 @@ downsampling:
   max_reads: 0                                   # Maximum number of read PAIRS to process
 
 
-## MitoGeneExtrator parameters
+## MitoGeneExtractor / barcode recovery parameters
 # Leave default (as below) for full parameter sweep. r1:s50 is the most relaxed, whilst r1.5:s100 is the most strict.
-# Exonerate relative score threshold parameter
-r:
-  - 1
-  - 1.3
-  - 1.5
-# Exonerate minimum score threshold parameter
-s:
-  - 50
-  - 100
-n: 0                                             # Number of bp to extend beyond the Exonerate alignment
-C: 5                                             # Genetic code table
-t: 0.5                                           # Consensus threshold (0-1)
+barcode_recovery:
+  r:                                             # Exonerate relative score threshold parameter
+    - 1
+    - 1.3
+    - 1.5
+  s:                                             # Exonerate minimum score threshold parameter
+    - 50
+    - 100
+  n: 0                                           # Number of bp to extend beyond the Exonerate alignment
+  C: 5                                           # Genetic code table (used by both MitoGeneExtractor and structural validation)
+  t: 0.5                                         # Consensus threshold (0-1)
 
 
 ## Post-processing of aligned reads for cleaning (using fasta_cleaner)
@@ -72,18 +71,16 @@ fasta_cleaner:
 
 
 ## Structural validation
-run_structural_validation: true                  # Set false to skip structural validation step
 structural_validation:
   target: "cox1"                                 # Options: cox1/coi or rbcl (maps to corresponding HMM)
   verbose: false                                 # Enable verbose logging
-  genetic_code: 5                                # Genetic code table
+  # Genetic code is taken from barcode_recovery.C above (same value used by MitoGeneExtractor)
 
 
 ## Taxonomic validation
-run_taxonomic_validation: true                   # If run_structural_validation == false, run_taxonomic_validation MUST also be false
 taxonomic_validation:
-    database: "/path/to/BOLDistilled/"
-    database_taxonomy: "/PATH/TO/BOLDistilled/BOLDistilled_taxonomy/source/BOLDistilled_COI_Jul2025_TAXONOMY.tsv"
+    blast_db: "/path/to/BOLDistilled/"           # Path to BLASTn database directory or FASTA file
+    db_taxonomy: "/PATH/TO/BOLDistilled/BOLDistilled_taxonomy/source/BOLDistilled_COI_Jul2025_TAXONOMY.tsv"
     taxval_rank: "family"                        # Taxonomic rank for validation (phylum, class, order, family, genus, species) (default & recommended: family)
     expected_taxonomy: "/PATH/TO/EXPECTED_TAXONOMY"
                                                  # It must contain the following columns: ID,phylum,class,order,family,genus,speces. ID must equal 'ID' from samples_file above
