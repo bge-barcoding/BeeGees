@@ -6,7 +6,7 @@ either is absent, so it is safe to run in bare Python environments.
 
 What this test checks:
 - The Snakefile parses without syntax errors.
-- Snakemake can resolve the full DAG from a valid config (--dryrun).
+- Snakemake can resolve the full DAG from a valid config without errors.
 
 It does NOT submit or execute any jobs.
 """
@@ -181,21 +181,22 @@ def minimal_run(tmp_path):
 
 class TestSnakefileDryrun:
     def test_snakefile_parses_without_syntax_errors(self, minimal_run):
-        """snakemake --lint should pass with a valid config (no syntax errors)."""
+        """snakemake --dryrun should resolve the full DAG without errors."""
         tmp_path, config_file = minimal_run
         result = subprocess.run(
             [
                 sys.executable, "-m", "snakemake",
                 "--snakefile", str(SNAKEFILE),
                 "--configfile", str(config_file),
-                "--lint",
+                "--dryrun",
+                "--quiet",
             ],
             capture_output=True,
             text=True,
             cwd=str(tmp_path),
         )
         assert result.returncode == 0, (
-            f"Snakemake lint failed.\n"
+            f"Snakemake dryrun failed.\n"
             f"STDOUT:\n{result.stdout}\n"
             f"STDERR:\n{result.stderr}"
         )
