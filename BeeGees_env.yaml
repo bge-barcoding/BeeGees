@@ -10,7 +10,7 @@ dependencies:
   - snakemake=9.9.0
   - snakemake-executor-plugin-slurm=1.6.1
   - snakemake-executor-plugin-slurm-jobstep=0.3.0
-  - gene-fetch>=1.0.20
+  - gene-fetch>=1.0.21
   - trim-galore=0.6.10
   - fastp=0.23.4
   - pigz=2.8

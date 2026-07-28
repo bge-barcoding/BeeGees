@@ -99,12 +99,6 @@ cat("Columns:", paste(colnames(df_outcome), collapse = " | "), "\n\n")
 
 df_outcome <- df_outcome %>%
   mutate(
-    expected_species = trimws(sub(".*;", "", expected_taxonomy)),
-    observed_species = ifelse(
-      !is.na(observed_taxonomy) & observed_taxonomy != "NA",
-      trimws(sub("^[^:]+:\\s*([^(]+)\\s*\\(species\\).*", "\\1", observed_taxonomy)),
-      NA_character_
-    ),
     outcome_category = dplyr::case_when(
       barcode_outcome == "FAIL"    ~ "Fail",
       barcode_outcome == "PARTIAL" ~ "Partial",
@@ -244,10 +238,10 @@ cat("Written: barcoding_01_outcome_summary_mqc.yaml\n")
 generalstats_data <- setNames(
   lapply(seq_len(nrow(df_outcome)), function(i) {
     list(
-      "Outcome"          = as.character(df_outcome$outcome_category[i]),
-      "Expected species" = df_outcome$expected_species[i],
-      "Observed species" = ifelse(is.na(df_outcome$observed_species[i]),
-                                  "NA", df_outcome$observed_species[i])
+      "Outcome"              = as.character(df_outcome$outcome_category[i]),
+      "Expected Taxonomy"    = df_outcome$expected_taxonomy[i],
+      "Observed Taxonomy"    = ifelse(is.na(df_outcome$observed_taxonomy[i]),
+                                      "NA", df_outcome$observed_taxonomy[i])
     )
   }),
   df_outcome$ID
@@ -260,12 +254,12 @@ mqc_generalstats <- list(
   plot_type    = "generalstats",
   pconfig      = list(
     list(
-      "Outcome"          = list(title = "Outcome",
-                                description = "Barcoding outcome category"),
-      "Expected species" = list(title = "Expected species",
-                                description = "Expected species from taxonomy file"),
-      "Observed species" = list(title = "Observed species",
-                                description = "Top BLAST hit species")
+      "Outcome"           = list(title = "Outcome",
+                                 description = "Barcoding outcome category"),
+      "Expected Taxonomy" = list(title = "Expected Taxonomy",
+                                 description = "Expected taxonomic lineage from taxonomy file"),
+      "Observed Taxonomy" = list(title = "Observed Taxonomy",
+                                 description = "Observed taxonomic lineage from top BLAST hit")
     )
   ),
   data = generalstats_data
@@ -717,7 +711,7 @@ mqc_success_bins <- list(
   id                 = "success_rate_by_read_bin",
   parent_id          = "barcoding_outcome",
   parent_name        = "Barcoding Outcome",
-  description        = "Barcode success rate by raw read count bin.",
+  description        = "Barcode success rate by raw read count bin. Successful samples will show 'pass' within the General Statistics table and `barcoding_outcome.tsv`",
   plot_type          = "bargraph",
   pconfig            = list(
     id           = "success_rate_by_read_bin_bargraph",
