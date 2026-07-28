@@ -13,7 +13,7 @@ conda activate BeeGees_env
 
 # Setup logging
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-VERSION="v3.0.1"
+VERSION="v3.0.3"
 PIPELINE="BeeGees Snakemake workflow"				
 LOG_FILE="snakemake_${TIMESTAMP}.log"
 CONFIG="./config/config.yaml"
