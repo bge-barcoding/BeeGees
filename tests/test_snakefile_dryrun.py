@@ -62,16 +62,17 @@ def minimal_run(tmp_path):
           enabled: false
           max_reads: 0
 
-        r:
-          - 1
-          - 1.3
-          - 1.5
-        s:
-          - 50
-          - 100
-        n: 0
-        C: 5
-        t: 0.5
+        barcode_recovery:
+          r:
+            - 1
+            - 1.3
+            - 1.5
+          s:
+            - 50
+            - 100
+          n: 0
+          C: 5
+          t: 0.5
 
         fasta_cleaner:
           consensus_threshold: 0.5
@@ -82,16 +83,13 @@ def minimal_run(tmp_path):
           reference_dir: null
           reference_filter_mode: "remove_similar"
 
-        run_structural_validation: false
         structural_validation:
           target: "cox1"
           verbose: false
-          genetic_code: 5
 
-        run_taxonomic_validation: false
         taxonomic_validation:
-          database: ""
-          database_taxonomy: ""
+          blast_db: ""
+          db_taxonomy: ""
           taxval_rank: "family"
           expected_taxonomy: ""
           verbose: false

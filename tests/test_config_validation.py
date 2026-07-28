@@ -80,8 +80,7 @@ def _base_config(tmp_path):
         "run_name": "TEST",
         "samples_file": str(samples),
         "output_dir": str(tmp_path / "out"),
-        "r": [1, 1.3],
-        "s": [50, 100],
+        "barcode_recovery": {"r": [1, 1.3], "s": [50, 100], "n": 0, "C": 5, "t": 0.5},
         "run_gene_fetch": False,
         "sequence_reference_file": str(samples),
     }
@@ -120,14 +119,14 @@ class TestValidateConfig:
     def test_r_not_a_list_exits(self, tmp_path, monkeypatch):
         monkeypatch.setattr(sys.modules["shutil"], "which", lambda x: "/usr/bin/fake")
         cfg = _base_config(tmp_path)
-        cfg["r"] = 1
+        cfg["barcode_recovery"]["r"] = 1
         with pytest.raises(SystemExit):
             _v.validate_config(cfg)
 
     def test_s_empty_list_exits(self, tmp_path, monkeypatch):
         monkeypatch.setattr(sys.modules["shutil"], "which", lambda x: "/usr/bin/fake")
         cfg = _base_config(tmp_path)
-        cfg["s"] = []
+        cfg["barcode_recovery"]["s"] = []
         with pytest.raises(SystemExit):
             _v.validate_config(cfg)
 
@@ -225,18 +224,19 @@ class TestValidateGeneFetchConfig:
 # ---------------------------------------------------------------------------
 
 class TestValidateStructuralValidationConfig:
-    def test_true_is_valid(self):
-        _v.validate_structural_validation_config({"run_structural_validation": True})
+    def test_valid_target_passes(self):
+        _v.validate_structural_validation_config({"structural_validation": {"target": "cox1"}})
 
-    def test_false_is_valid(self):
-        _v.validate_structural_validation_config({"run_structural_validation": False})
-
-    def test_non_bool_exits(self):
+    def test_missing_target_exits(self):
         with pytest.raises(SystemExit):
-            _v.validate_structural_validation_config({"run_structural_validation": "yes"})
+            _v.validate_structural_validation_config({"structural_validation": {}})
 
-    def test_missing_key_uses_default(self):
-        _v.validate_structural_validation_config({})
+    def test_missing_section_exits(self):
+        with pytest.raises(SystemExit):
+            _v.validate_structural_validation_config({})
+
+    def test_rbcl_target_passes(self):
+        _v.validate_structural_validation_config({"structural_validation": {"target": "rbcl"}})
 
 
 # ---------------------------------------------------------------------------
@@ -244,27 +244,85 @@ class TestValidateStructuralValidationConfig:
 # ---------------------------------------------------------------------------
 
 class TestValidateTaxonomicValidationConfig:
-    def test_false_is_valid(self):
-        _v.validate_taxonomic_validation_config({"run_taxonomic_validation": False})
-
-    def test_non_bool_exits(self):
-        with pytest.raises(SystemExit):
-            _v.validate_taxonomic_validation_config({"run_taxonomic_validation": "true"})
-
-    def test_true_missing_database_exits(self):
+    def test_missing_blast_db_exits(self):
         with pytest.raises(SystemExit):
             _v.validate_taxonomic_validation_config({
-                "run_taxonomic_validation": True,
-                "taxonomic_validation": {"database": ""},
+                "taxonomic_validation": {"blast_db": ""},
             })
 
-    def test_true_nonexistent_database_exits(self):
+    def test_nonexistent_blast_db_exits(self):
         with pytest.raises(SystemExit):
             _v.validate_taxonomic_validation_config({
-                "run_taxonomic_validation": True,
                 "taxonomic_validation": {
-                    "database": "/nonexistent/db/",
-                    "database_taxonomy": "",
+                    "blast_db": "/nonexistent/db/",
+                    "db_taxonomy": "",
                     "expected_taxonomy": "",
                 },
             })
+
+    def test_missing_db_taxonomy_exits(self, tmp_path):
+        blast_db = tmp_path / "blastdb"
+        blast_db.mkdir()
+        with pytest.raises(SystemExit):
+            _v.validate_taxonomic_validation_config({
+                "taxonomic_validation": {
+                    "blast_db": str(blast_db),
+                    "db_taxonomy": "",
+                    "expected_taxonomy": "",
+                },
+            })
+
+    def test_nonexistent_db_taxonomy_exits(self, tmp_path):
+        blast_db = tmp_path / "blastdb"
+        blast_db.mkdir()
+        with pytest.raises(SystemExit):
+            _v.validate_taxonomic_validation_config({
+                "taxonomic_validation": {
+                    "blast_db": str(blast_db),
+                    "db_taxonomy": "/nonexistent/taxonomy.tsv",
+                    "expected_taxonomy": "",
+                },
+            })
+
+    def test_missing_expected_taxonomy_exits(self, tmp_path):
+        blast_db = tmp_path / "blastdb"
+        blast_db.mkdir()
+        taxonomy = tmp_path / "taxonomy.tsv"
+        taxonomy.write_text("dummy")
+        with pytest.raises(SystemExit):
+            _v.validate_taxonomic_validation_config({
+                "taxonomic_validation": {
+                    "blast_db": str(blast_db),
+                    "db_taxonomy": str(taxonomy),
+                    "expected_taxonomy": "",
+                },
+            })
+
+    def test_nonexistent_expected_taxonomy_exits(self, tmp_path):
+        blast_db = tmp_path / "blastdb"
+        blast_db.mkdir()
+        taxonomy = tmp_path / "taxonomy.tsv"
+        taxonomy.write_text("dummy")
+        with pytest.raises(SystemExit):
+            _v.validate_taxonomic_validation_config({
+                "taxonomic_validation": {
+                    "blast_db": str(blast_db),
+                    "db_taxonomy": str(taxonomy),
+                    "expected_taxonomy": "/nonexistent/expected.tsv",
+                },
+            })
+
+    def test_all_valid_paths_pass(self, tmp_path):
+        blast_db = tmp_path / "blastdb"
+        blast_db.mkdir()
+        taxonomy = tmp_path / "taxonomy.tsv"
+        taxonomy.write_text("dummy")
+        expected = tmp_path / "expected.tsv"
+        expected.write_text("dummy")
+        _v.validate_taxonomic_validation_config({
+            "taxonomic_validation": {
+                "blast_db": str(blast_db),
+                "db_taxonomy": str(taxonomy),
+                "expected_taxonomy": str(expected),
+            },
+        })

@@ -34,15 +34,21 @@ class TestConfigYamlStructure:
     def test_has_output_dir(self, config):
         assert "output_dir" in config
 
-    def test_has_r_list(self, config):
-        assert "r" in config
-        assert isinstance(config["r"], list)
-        assert len(config["r"]) > 0
+    def test_has_barcode_recovery_section(self, config):
+        assert "barcode_recovery" in config
+        assert isinstance(config["barcode_recovery"], dict)
 
-    def test_has_s_list(self, config):
-        assert "s" in config
-        assert isinstance(config["s"], list)
-        assert len(config["s"]) > 0
+    def test_barcode_recovery_r_list(self, config):
+        br = config["barcode_recovery"]
+        assert "r" in br
+        assert isinstance(br["r"], list)
+        assert len(br["r"]) > 0
+
+    def test_barcode_recovery_s_list(self, config):
+        br = config["barcode_recovery"]
+        assert "s" in br
+        assert isinstance(br["s"], list)
+        assert len(br["s"]) > 0
 
     def test_has_run_gene_fetch_bool(self, config):
         assert "run_gene_fetch" in config
@@ -86,17 +92,15 @@ class TestConfigYamlStructure:
         assert 0.0 <= float(val) <= 100.0
 
     # structural_validation section
-    def test_run_structural_validation_is_bool(self, config):
-        assert isinstance(config.get("run_structural_validation"), bool)
-
     def test_structural_validation_target_valid(self, config):
         target = config.get("structural_validation", {}).get("target", "")
         assert target.lower() in {"cox1", "coi", "rbcl"}
 
-    # taxonomic_validation section
-    def test_run_taxonomic_validation_is_bool(self, config):
-        assert isinstance(config.get("run_taxonomic_validation"), bool)
+    def test_structural_validation_no_genetic_code_key(self, config):
+        # genetic_code was removed from structural_validation; it is now read from barcode_recovery.C
+        assert "genetic_code" not in config.get("structural_validation", {})
 
+    # taxonomic_validation section
     def test_taxonomic_validation_taxval_rank_valid(self, config):
         rank = config.get("taxonomic_validation", {}).get("taxval_rank", "")
         valid_ranks = {"phylum", "class", "order", "family", "genus", "species"}
@@ -115,13 +119,25 @@ class TestConfigYamlStructure:
         for rule_name, rule_cfg in config["rules"].items():
             assert "threads" in rule_cfg, f"Rule '{rule_name}' missing threads"
 
-    # MGE parameters
-    def test_n_is_numeric(self, config):
-        assert isinstance(config.get("n"), (int, float))
+    # barcode_recovery parameters
+    def test_barcode_recovery_n_is_numeric(self, config):
+        val = config["barcode_recovery"]["n"]
+        assert isinstance(val, (int, float))
 
-    def test_C_is_int(self, config):
-        assert isinstance(config.get("C"), int)
+    def test_barcode_recovery_C_is_int(self, config):
+        assert isinstance(config["barcode_recovery"]["C"], int)
 
-    def test_t_is_float_in_range(self, config):
-        val = config.get("t")
+    def test_barcode_recovery_t_is_float_in_range(self, config):
+        val = config["barcode_recovery"]["t"]
         assert 0.0 <= float(val) <= 1.0
+
+    # taxonomic_validation key names
+    def test_taxonomic_validation_has_blast_db(self, config):
+        tv = config.get("taxonomic_validation", {})
+        assert "blast_db" in tv, "'blast_db' key missing from taxonomic_validation"
+        assert "database" not in tv, "old 'database' key should not be present"
+
+    def test_taxonomic_validation_has_db_taxonomy(self, config):
+        tv = config.get("taxonomic_validation", {})
+        assert "db_taxonomy" in tv, "'db_taxonomy' key missing from taxonomic_validation"
+        assert "database_taxonomy" not in tv, "old 'database_taxonomy' key should not be present"
