@@ -20,9 +20,13 @@ def cmd_init(args):
             print(f"ERROR: {dest} already exists. Use --force to overwrite.", file=sys.stderr)
             return 1
         shutil.copytree(pkg / d, dest, dirs_exist_ok=args.force)
+    samples_dest = cwd / "samples_template.csv"
+    if not samples_dest.exists() or args.force:
+        shutil.copy2(pkg / "config" / "samples_template.csv", samples_dest)
+
     print(f"Initialised BeeGees config in {cwd}")
     print(f"  1. Edit config/config.yaml")
-    print(f"  2. Prepare samples.csv")
+    print(f"  2. Fill in samples_template.csv and save as samples.csv")
     print(f"  3. Run: beegees run --config config/config.yaml")
     return 0
 

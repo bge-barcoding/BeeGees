@@ -80,6 +80,18 @@ class TestInitCommand:
         assert (tmp_path / "config" / "config.yaml").exists()
         assert (tmp_path / "profiles" / "local" / "config.yaml").exists()
         assert (tmp_path / "profiles" / "slurm" / "config.yaml").exists()
+        assert (tmp_path / "samples_template.csv").exists()
+
+    def test_init_creates_samples_template(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        from beegees.__main__ import cmd_init
+
+        class FakeArgs:
+            force = False
+
+        cmd_init(FakeArgs())
+        content = (tmp_path / "samples_template.csv").read_text()
+        assert content.startswith("ID,forward,reverse,phylum,class,order,family,genus,species")
 
     def test_init_refuses_overwrite_without_force(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
