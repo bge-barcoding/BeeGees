@@ -8,7 +8,7 @@ version = "3.0.3"
 description = "BeeGees: DNA barcoding from museum specimen genome skims via Snakemake"
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.10"
+requires-python = ">=3.11, <3.12"
 authors = [
     {name = "Dan A.J. Parsons", email = "d.parsons@nhm.ac.uk"},
     {name = "Rutger A. Vos", email = "b.price@nhm.ac.uk"},
