@@ -45,6 +45,15 @@ def minimal_run(tmp_path):
     seq_refs = tmp_path / "sequence_references.csv"
     seq_refs.write_text(f"ID,protein_reference_path\nSAMPLE01,{protein_ref}\n")
 
+    # Dummy validation paths — validate_taxonomic_validation_config always runs
+    # (no toggle), so blast_db/db_taxonomy/expected_taxonomy must exist on disk.
+    blast_db = tmp_path / "blast_db"
+    blast_db.mkdir()
+    db_taxonomy = tmp_path / "db_taxonomy.tsv"
+    db_taxonomy.write_bytes(b"")
+    expected_taxonomy = tmp_path / "expected_taxonomy.tsv"
+    expected_taxonomy.write_bytes(b"")
+
     # Minimal config pointing at the fake samples file
     config_text = textwrap.dedent(f"""\
         run_name: "DRYRUN_TEST"
@@ -88,10 +97,10 @@ def minimal_run(tmp_path):
           verbose: false
 
         taxonomic_validation:
-          blast_db: ""
-          db_taxonomy: ""
+          blast_db: "{blast_db}"
+          db_taxonomy: "{db_taxonomy}"
           taxval_rank: "family"
-          expected_taxonomy: ""
+          expected_taxonomy: "{expected_taxonomy}"
           verbose: false
           min_pident: 80
           min_length: 100
