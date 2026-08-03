@@ -45,4 +45,5 @@ beegees = [
     "resources/**/*",
     "config/*",
     "profiles/**/*",
+    "profiles/slurm/bin/*",
 ]

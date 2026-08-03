@@ -11,6 +11,7 @@ def build_snakemake_cmd(
     dryrun: bool,
     unlock: bool,
     extra_args: list[str],
+    log_file: Path | None = None,
 ) -> list[str]:
     cmd = ["snakemake", "--snakefile", str(get_snakefile())]
 
@@ -30,5 +31,7 @@ def build_snakemake_cmd(
         cmd += ["--unlock"]
     else:
         cmd += ["--rerun-incomplete"]
+    if log_file:
+        cmd += ["--log", str(log_file)]
 
     return cmd + extra_args

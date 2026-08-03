@@ -1,0 +1,23 @@
+#!/bin/bash
+# Strips --clusters / --clusters=all from sacct calls.
+# Workaround for snakemake-executor-plugin-slurm on clusters where slurmdbd
+# (port 6819) is not accessible. If your cluster admin enables slurmdbd this
+# wrapper is harmless but no longer necessary.
+THIS_DIR="$(cd "$(dirname "$0")" && pwd)"
+REAL_SACCT=""
+while IFS= read -r path; do
+    if [[ "$path" != "$THIS_DIR/sacct" ]]; then
+        REAL_SACCT="$path"
+        break
+    fi
+done < <(which -a sacct 2>/dev/null)
+[[ -z "$REAL_SACCT" ]] && { echo "sacct: command not found" >&2; exit 1; }
+args=()
+skip_next=false
+for arg in "$@"; do
+    if [[ "$skip_next" == "true" ]]; then skip_next=false; continue; fi
+    if [[ "$arg" == "--clusters" ]]; then skip_next=true; continue
+    elif [[ "$arg" == "--clusters="* ]]; then continue; fi
+    args+=("$arg")
+done
+exec "$REAL_SACCT" "${args[@]}"

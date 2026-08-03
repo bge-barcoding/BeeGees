@@ -1,5 +1,6 @@
 """BeeGees command-line interface."""
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -23,7 +24,6 @@ def cmd_init(args):
     samples_dest = cwd / "samples_template.csv"
     if not samples_dest.exists() or args.force:
         shutil.copy2(pkg / "config" / "samples_template.csv", samples_dest)
-
     print(f"Initialised BeeGees config in {cwd}")
     print(f"  1. Edit config/config.yaml")
     print(f"  2. Fill in samples_template.csv and save as samples.csv")
@@ -40,6 +40,13 @@ def cmd_run(args):
         print(f"       or supply the path to an existing config with --config /path/to/config.yaml", file=sys.stderr)
         return 1
 
+    log_file = Path(args.log_file) if args.log_file else None
+
+    env = os.environ.copy()
+    if args.profile == "slurm":
+        slurm_bin = str(get_package_dir() / "profiles" / "slurm" / "bin")
+        env["PATH"] = slurm_bin + os.pathsep + env.get("PATH", "")
+
     if not args.dryrun:
         unlock_cmd = build_snakemake_cmd(
             configfile=configfile,
@@ -49,7 +56,7 @@ def cmd_run(args):
             unlock=True,
             extra_args=[],
         )
-        subprocess.run(unlock_cmd)
+        subprocess.run(unlock_cmd, env=env)
 
     run_cmd = build_snakemake_cmd(
         configfile=configfile,
@@ -58,8 +65,9 @@ def cmd_run(args):
         dryrun=args.dryrun,
         unlock=False,
         extra_args=args.snakemake_args or [],
+        log_file=log_file,
     )
-    return subprocess.run(run_cmd).returncode
+    return subprocess.run(run_cmd, env=env).returncode
 
 
 def build_parser():
@@ -101,6 +109,10 @@ def build_parser():
     p_run.add_argument(
         "--dryrun", "-n", action="store_true",
         help="Preview jobs without executing.",
+    )
+    p_run.add_argument(
+        "--log-file", default=None, metavar="PATH",
+        help="Write the Snakemake log to this file (in addition to the terminal).",
     )
     p_run.add_argument(
         "snakemake_args", nargs=argparse.REMAINDER,

@@ -58,6 +58,14 @@ class TestParserStructure:
         args = self.parser.parse_args(["run", "--config", "c.yaml", "--", "--forceall"])
         assert "--forceall" in args.snakemake_args
 
+    def test_run_log_file(self):
+        args = self.parser.parse_args(["run", "--config", "c.yaml", "--log-file", "run.log"])
+        assert args.log_file == "run.log"
+
+    def test_run_log_file_default_none(self):
+        args = self.parser.parse_args(["run", "--config", "c.yaml"])
+        assert args.log_file is None
+
     def test_init_default_no_force(self):
         args = self.parser.parse_args(["init"])
         assert args.force is False
