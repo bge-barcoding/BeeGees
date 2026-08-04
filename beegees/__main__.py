@@ -1,6 +1,5 @@
 """BeeGees command-line interface."""
 import argparse
-import os
 import shutil
 import subprocess
 import sys
@@ -42,11 +41,6 @@ def cmd_run(args):
 
     log_file = Path(args.log_file) if args.log_file else None
 
-    env = os.environ.copy()
-    if args.profile == "slurm":
-        slurm_bin = str(get_package_dir() / "profiles" / "slurm" / "bin")
-        env["PATH"] = slurm_bin + os.pathsep + env.get("PATH", "")
-
     if not args.dryrun:
         unlock_cmd = build_snakemake_cmd(
             configfile=configfile,
@@ -56,7 +50,9 @@ def cmd_run(args):
             unlock=True,
             extra_args=[],
         )
-        subprocess.run(unlock_cmd, env=env)
+        result = subprocess.run(unlock_cmd, capture_output=True, text=True)
+        if "Unlocked" in result.stdout or "Unlocked" in result.stderr:
+            print("Working directory unlocked.")
 
     run_cmd = build_snakemake_cmd(
         configfile=configfile,
@@ -67,7 +63,7 @@ def cmd_run(args):
         extra_args=args.snakemake_args or [],
         log_file=log_file,
     )
-    return subprocess.run(run_cmd, env=env).returncode
+    return subprocess.run(run_cmd).returncode
 
 
 def build_parser():

@@ -13,7 +13,7 @@ default-resources:
     # slurm_account: uncomment if your cluster requires an explicit account (-A flag). Run `sacctmgr show user $USER` to find your account name.
 
 # Job submission settings
-jobs: 20                                      # Maximum number of cluster jobs Snakemake will have running or pending at once.
+jobs: 10                                      # Maximum concurrent SLURM jobs. Kept low to avoid hitting login-node thread limits; increase via -- --jobs N if needed.
 local-cores: 1                                # Number of CPU cores to use on the head/login node for Snakemake’s own internal tasks. Recommended to keep at 1).
 
 # Status checking settings 
