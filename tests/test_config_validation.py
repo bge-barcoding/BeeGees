@@ -12,6 +12,7 @@ import types
 from pathlib import Path
 
 import pytest
+from beegees.utils.configs import get_package_dir
 
 # ---------------------------------------------------------------------------
 # Stub snakemake and pandas before loading the Snakefile.
@@ -33,7 +34,7 @@ def _install_stubs():
 
 _stubs_installed = _install_stubs()
 
-_snakefile = Path(__file__).parent.parent / "workflow" / "Snakefile"
+_snakefile = get_package_dir() / "workflow" / "Snakefile"
 
 
 def _extract_python_preamble(path: Path) -> str:

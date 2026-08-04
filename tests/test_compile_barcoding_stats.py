@@ -1,8 +1,9 @@
 """Tests for pure parsing functions in compile_barcoding_stats.py."""
 import importlib.util
 from pathlib import Path
+from beegees.utils.configs import get_package_dir
 
-_script = Path(__file__).parent.parent / "workflow" / "scripts" / "compile_barcoding_stats.py"
+_script = get_package_dir() / "workflow" / "scripts" / "compile_barcoding_stats.py"
 _spec = importlib.util.spec_from_file_location("compile_stats", _script)
 compile_stats = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(compile_stats)

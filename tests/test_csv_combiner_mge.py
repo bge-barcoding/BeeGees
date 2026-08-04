@@ -4,8 +4,9 @@ import importlib.util
 from pathlib import Path
 
 import pytest
+from beegees.utils.configs import get_package_dir
 
-_script = Path(__file__).parent.parent / "workflow" / "scripts" / "csv_combiner_mge.py"
+_script = get_package_dir() / "workflow" / "scripts" / "csv_combiner_mge.py"
 _spec = importlib.util.spec_from_file_location("csv_combiner", _script)
 csv_combiner = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(csv_combiner)

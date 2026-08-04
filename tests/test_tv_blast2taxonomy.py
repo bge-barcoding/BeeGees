@@ -4,8 +4,9 @@ import logging
 from pathlib import Path
 
 import pytest
+from beegees.utils.configs import get_package_dir
 
-_script = Path(__file__).parent.parent / "workflow" / "scripts" / "tv_blast2taxonomy.py"
+_script = get_package_dir() / "workflow" / "scripts" / "tv_blast2taxonomy.py"
 _spec = importlib.util.spec_from_file_location("tv_blast2tax", _script)
 tv_blast2tax = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(tv_blast2tax)

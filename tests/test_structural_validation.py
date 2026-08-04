@@ -3,8 +3,9 @@ import importlib.util
 from pathlib import Path
 
 import pytest
+from beegees.utils.configs import get_package_dir
 
-_script = Path(__file__).parent.parent / "workflow" / "scripts" / "structural_validation.py"
+_script = get_package_dir() / "workflow" / "scripts" / "structural_validation.py"
 _spec = importlib.util.spec_from_file_location("struct_val", _script)
 struct_val = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(struct_val)

@@ -1,8 +1,9 @@
 """Tests for categorise_header in barcode_consensus_count.py."""
 import importlib.util
 from pathlib import Path
+from beegees.utils.configs import get_package_dir
 
-_script = Path(__file__).parent.parent / "workflow" / "scripts" / "barcode_consensus_count.py"
+_script = get_package_dir() / "workflow" / "scripts" / "barcode_consensus_count.py"
 _spec = importlib.util.spec_from_file_location("bcc", _script)
 bcc = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(bcc)

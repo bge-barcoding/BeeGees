@@ -3,8 +3,9 @@ import importlib.util
 from pathlib import Path
 
 import pytest
+from beegees.utils.configs import get_package_dir
 
-_script = Path(__file__).parent.parent / "workflow" / "scripts" / "03_statistical_outlier_filter.py"
+_script = get_package_dir() / "workflow" / "scripts" / "03_statistical_outlier_filter.py"
 _spec = importlib.util.spec_from_file_location("stat_filter", _script)
 stat_filter = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(stat_filter)
