@@ -4,8 +4,9 @@ import json
 from pathlib import Path
 
 import pytest
+from beegees.utils.configs import get_package_dir
 
-_script = Path(__file__).parent.parent / "workflow" / "scripts" / "fastp_summary_parser.py"
+_script = get_package_dir() / "workflow" / "scripts" / "fastp_summary_parser.py"
 _spec = importlib.util.spec_from_file_location("fastp_parser", _script)
 fastp_parser = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(fastp_parser)

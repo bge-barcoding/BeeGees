@@ -7,9 +7,10 @@ from pathlib import Path
 
 import pytest
 import yaml
+from beegees.utils.configs import get_package_dir
 
 
-CONFIG_PATH = Path(__file__).parent.parent / "config" / "config.yaml"
+CONFIG_PATH = get_package_dir() / "config" / "config.yaml"
 
 
 @pytest.fixture(scope="module")

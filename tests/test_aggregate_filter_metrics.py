@@ -3,10 +3,11 @@ import importlib.util
 from pathlib import Path
 
 import pytest
+from beegees.utils.configs import get_package_dir
 
 pytest.importorskip("pandas", reason="pandas not installed; skipping aggregate_filter_metrics tests")
 
-_script = Path(__file__).parent.parent / "workflow" / "scripts" / "06_aggregate_filter_metrics.py"
+_script = get_package_dir() / "workflow" / "scripts" / "06_aggregate_filter_metrics.py"
 _spec = importlib.util.spec_from_file_location("agg_metrics", _script)
 agg_metrics = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(agg_metrics)

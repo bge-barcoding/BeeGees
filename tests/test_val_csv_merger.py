@@ -4,10 +4,11 @@ import math
 from pathlib import Path
 
 import pytest
+from beegees.utils.configs import get_package_dir
 
 pytest.importorskip("pandas", reason="pandas not installed; skipping val_csv_merger tests")
 
-_script = Path(__file__).parent.parent / "workflow" / "scripts" / "val_csv_merger.py"
+_script = get_package_dir() / "workflow" / "scripts" / "val_csv_merger.py"
 _spec = importlib.util.spec_from_file_location("val_csv_merger", _script)
 val_csv_merger = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(val_csv_merger)

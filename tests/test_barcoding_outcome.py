@@ -3,8 +3,9 @@ import importlib.util
 from pathlib import Path
 
 import pytest
+from beegees.utils.configs import get_package_dir
 
-_script = Path(__file__).parent.parent / "workflow" / "scripts" / "barcoding_outcome.py"
+_script = get_package_dir() / "workflow" / "scripts" / "barcoding_outcome.py"
 _spec = importlib.util.spec_from_file_location("bc_outcome", _script)
 bc_outcome = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(bc_outcome)

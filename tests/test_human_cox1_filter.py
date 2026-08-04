@@ -4,8 +4,9 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from beegees.utils.configs import get_package_dir
 
-_script = Path(__file__).parent.parent / "workflow" / "scripts" / "01_human_cox1_filter.py"
+_script = get_package_dir() / "workflow" / "scripts" / "01_human_cox1_filter.py"
 _spec = importlib.util.spec_from_file_location("cox1_filter", _script)
 cox1_filter = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(cox1_filter)

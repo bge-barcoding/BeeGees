@@ -17,11 +17,12 @@ import textwrap
 from pathlib import Path
 
 import pytest
+from beegees.utils.configs import get_package_dir
 
 # Skip the whole module when snakemake is not available.
 pytest.importorskip("snakemake", reason="snakemake not installed; skipping dryrun tests")
 
-SNAKEFILE = Path(__file__).parent.parent / "workflow" / "Snakefile"
+SNAKEFILE = get_package_dir() / "workflow" / "Snakefile"
 
 
 @pytest.fixture()

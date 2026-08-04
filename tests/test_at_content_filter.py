@@ -5,9 +5,10 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from beegees.utils.configs import get_package_dir
 
 # Import the script as a module
-_script = Path(__file__).parent.parent / "workflow" / "scripts" / "02_at_content_filter.py"
+_script = get_package_dir() / "workflow" / "scripts" / "02_at_content_filter.py"
 _spec = importlib.util.spec_from_file_location("at_filter", _script)
 at_filter = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(at_filter)

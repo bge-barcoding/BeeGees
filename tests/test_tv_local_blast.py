@@ -1,8 +1,9 @@
 """Tests for BLASTRunner.sanitize_header (static method) in tv_local_blast.py."""
 import importlib.util
 from pathlib import Path
+from beegees.utils.configs import get_package_dir
 
-_script = Path(__file__).parent.parent / "workflow" / "scripts" / "tv_local_blast.py"
+_script = get_package_dir() / "workflow" / "scripts" / "tv_local_blast.py"
 _spec = importlib.util.spec_from_file_location("tv_local_blast", _script)
 tv_local_blast = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(tv_local_blast)
