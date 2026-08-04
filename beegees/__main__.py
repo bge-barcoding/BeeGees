@@ -1,9 +1,9 @@
 """BeeGees command-line interface."""
 import argparse
-import resource
 import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 from beegees import __version__
@@ -32,19 +32,17 @@ def cmd_init(args):
 
 
 def _reduce_thread_stack_size():
-    """Reduce per-thread stack size to avoid virtual-memory exhaustion on HPC login nodes.
+    """Reduce stack size for new Python threads to avoid virtual-memory exhaustion on HPC login nodes.
 
-    Login nodes often cap virtual memory (ulimit -v ~6 GB). glibc allocates
-    ulimit -s (default 8 MB) of virtual address space per new thread. Reducing
-    this to 2 MB lets snakemake's monitoring threads fit within the cap.
-    SLURM jobs inherit cluster defaults and are unaffected.
+    Uses threading.stack_size() rather than resource.setrlimit(RLIMIT_STACK) so that
+    the limit applies only to Python threads spawned within this process. Unlike
+    setrlimit, threading.stack_size() is NOT inherited by child processes or SLURM
+    jobs, preventing stack-overflow segfaults (exit 139) in tools like MitoGeneExtractor
+    that rely on deep C/C++ call stacks on compute nodes.
     """
     try:
-        soft, hard = resource.getrlimit(resource.RLIMIT_STACK)
-        target = 2 * 1024 * 1024  # 2 MB per thread stack
-        if soft == resource.RLIM_INFINITY or soft > target:
-            resource.setrlimit(resource.RLIMIT_STACK, (target, hard))
-    except (ValueError, resource.error):
+        threading.stack_size(2 * 1024 * 1024)  # 2 MB per Python thread
+    except (threading.ThreadError, ValueError):
         pass
 
 
