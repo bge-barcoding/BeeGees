@@ -1,5 +1,6 @@
 """BeeGees command-line interface."""
 import argparse
+import resource
 import shutil
 import subprocess
 import sys
@@ -30,8 +31,26 @@ def cmd_init(args):
     return 0
 
 
+def _reduce_thread_stack_size():
+    """Reduce per-thread stack size to avoid virtual-memory exhaustion on HPC login nodes.
+
+    Login nodes often cap virtual memory (ulimit -v ~6 GB). glibc allocates
+    ulimit -s (default 8 MB) of virtual address space per new thread. Reducing
+    this to 2 MB lets snakemake's monitoring threads fit within the cap.
+    SLURM jobs inherit cluster defaults and are unaffected.
+    """
+    try:
+        soft, hard = resource.getrlimit(resource.RLIMIT_STACK)
+        target = 2 * 1024 * 1024  # 2 MB per thread stack
+        if soft == resource.RLIM_INFINITY or soft > target:
+            resource.setrlimit(resource.RLIMIT_STACK, (target, hard))
+    except (ValueError, resource.error):
+        pass
+
+
 def cmd_run(args):
     """Run the BeeGees pipeline."""
+    _reduce_thread_stack_size()
     configfile = Path(args.config)
     if not configfile.exists():
         print(f"ERROR: config file not found: {configfile}", file=sys.stderr)
