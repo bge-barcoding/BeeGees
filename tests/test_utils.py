@@ -9,7 +9,7 @@ from beegees.utils.configs import (
     get_package_dir,
     get_snakefile,
 )
-from beegees.utils.snakemake_args import build_snakemake_cmd
+from beegees.utils.snakemake_args import build_snakemake_cmd, _resolve_profile
 
 
 class TestConfigs:
@@ -123,3 +123,43 @@ class TestSnakemakeArgs:
         assert "--quiet" in cmd
         assert cmd[-2] == "--forceall"
         assert cmd[-1] == "--quiet"
+
+
+class TestResolveProfile:
+    def test_none_resolves_to_bundled_local(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        result = _resolve_profile(None)
+        assert "local" in result
+        assert "profiles" in result
+
+    def test_name_falls_back_to_bundled_when_no_cwd_copy(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        result = _resolve_profile("slurm")
+        assert "slurm" in result
+        # Must point into the installed package, not the tmp dir
+        assert str(tmp_path) not in result
+
+    def test_cwd_profile_preferred_over_bundled(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        cwd_slurm = tmp_path / "profiles" / "slurm"
+        cwd_slurm.mkdir(parents=True)
+        result = _resolve_profile("slurm")
+        assert result == str(cwd_slurm)
+
+    def test_absolute_path_passed_through(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        absolute = str(tmp_path / "my-profile")
+        result = _resolve_profile(absolute)
+        assert result == absolute
+
+    def test_relative_path_with_slash_passed_through(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        result = _resolve_profile("./profiles/slurm")
+        assert result == "./profiles/slurm"
+
+    def test_cwd_local_preferred_over_bundled(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        cwd_local = tmp_path / "profiles" / "local"
+        cwd_local.mkdir(parents=True)
+        result = _resolve_profile(None)
+        assert result == str(cwd_local)
