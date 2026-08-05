@@ -5,7 +5,6 @@ import csv
 import shutil
 import subprocess
 import sys
-import threading
 from pathlib import Path
 
 from beegees import __version__
@@ -31,21 +30,6 @@ def cmd_init(args):
     print(f"  2. Fill in samples_template.csv and save as samples.csv")
     print(f"  3. Run: beegees run --config config/config.yaml")
     return 0
-
-
-def _reduce_thread_stack_size() -> None:
-    # Reduce Python thread stack VA from 8 MB to 2 MB. On login nodes with a
-    # tight virtual-memory limit (ulimit -v ~6 GB), Snakemake's SLURM monitoring
-    # threads accumulate address space that glibc never returns between polls.
-    # With many concurrent long-running jobs this exhausts the limit and raises
-    # RuntimeError: can't start new thread.
-    # threading.stack_size() is NOT a process-level rlimit and is NOT inherited
-    # by child processes or SLURM jobs — it cannot cause stack overflows in
-    # tools like MitoGeneExtractor (unlike resource.setrlimit(RLIMIT_STACK)).
-    try:
-        threading.stack_size(2 * 1024 * 1024)
-    except (threading.ThreadError, ValueError):
-        pass
 
 
 def _print_run_banner(configfile: Path) -> None:
@@ -83,7 +67,6 @@ def _print_run_banner(configfile: Path) -> None:
 
 def cmd_run(args):
     """Run the BeeGees pipeline."""
-    _reduce_thread_stack_size()
     configfile = Path(args.config)
     if not configfile.exists():
         print(f"ERROR: config file not found: {configfile}", file=sys.stderr)
