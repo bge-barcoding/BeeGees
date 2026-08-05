@@ -349,18 +349,6 @@ if run_mode == "SE":
         sys.stderr.write(f"WARNING: SE adapter fasta not found: {overrep_fasta_path}\n")
         sys.exit(1)
 
-import copy as _copy
-_display_config = _copy.deepcopy(config)
-if "gene_fetch" in _display_config and "api_key" in _display_config.get("gene_fetch", {}):
-    _display_config["gene_fetch"]["api_key"] = "***"
-_sep = "=" * 60
-print(f"\n{_sep}")
-print(f"  BeeGees  |  run: {config['run_name']}  |  mode: {run_mode}")
-print(_sep)
-print(yaml.dump(_display_config, default_flow_style=False, sort_keys=False).rstrip())
-print(f"{_sep}\n")
-del _copy, _display_config, _sep
-
 
 # ===== TAXDUMP DIRECTORY =====
 # Defaults to resources/ncbi_taxdump/ in the user's working directory so that

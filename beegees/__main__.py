@@ -1,5 +1,7 @@
 """BeeGees command-line interface."""
 import argparse
+import copy
+import csv
 import shutil
 import subprocess
 import sys
@@ -30,6 +32,39 @@ def cmd_init(args):
     return 0
 
 
+def _print_run_banner(configfile: Path) -> None:
+    """Print the BeeGees run banner once, before Snakemake starts.
+
+    Reading config and samples here (rather than in the Snakefile) means the
+    banner runs only in this process and never in the per-job worker snakemake
+    instances the SLURM executor spawns, keeping SLURM job logs clean.
+    """
+    try:
+        import yaml
+        with open(configfile) as fh:
+            cfg = yaml.safe_load(fh)
+        run_mode = "unknown"
+        samples_file = cfg.get("samples_file", "")
+        if samples_file and Path(samples_file).exists():
+            with open(samples_file) as fh:
+                rows = list(csv.DictReader(fh))
+            if rows:
+                has_r2 = [bool(str(r.get("R2", "")).strip()) for r in rows]
+                run_mode = "PE" if all(has_r2) else "SE"
+        display = copy.deepcopy(cfg)
+        gf = display.get("gene_fetch", {})
+        if "api_key" in gf:
+            gf["api_key"] = "***"
+        sep = "=" * 60
+        print(f"\n{sep}")
+        print(f"  BeeGees  |  run: {cfg.get('run_name', '')}  |  mode: {run_mode}")
+        print(sep)
+        print(yaml.dump(display, default_flow_style=False, sort_keys=False).rstrip())
+        print(f"{sep}\n")
+    except Exception:
+        pass
+
+
 def cmd_run(args):
     """Run the BeeGees pipeline."""
     configfile = Path(args.config)
@@ -38,6 +73,8 @@ def cmd_run(args):
         print(f"  Tip: run 'beegees init' to create a template config in the current directory,", file=sys.stderr)
         print(f"       or supply the path to an existing config with --config /path/to/config.yaml", file=sys.stderr)
         return 1
+
+    _print_run_banner(configfile)
 
     if not args.dryrun:
         unlock_cmd = build_snakemake_cmd(
