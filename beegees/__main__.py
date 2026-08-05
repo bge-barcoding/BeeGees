@@ -1,6 +1,5 @@
 """BeeGees command-line interface."""
 import argparse
-import resource
 import shutil
 import subprocess
 import sys
@@ -31,34 +30,14 @@ def cmd_init(args):
     return 0
 
 
-def _reduce_thread_stack_size():
-    """Reduce per-thread stack size to avoid virtual-memory exhaustion on HPC login nodes.
-
-    Login nodes often cap virtual memory (ulimit -v ~6 GB). glibc allocates
-    ulimit -s (default 8 MB) of virtual address space per new thread. Reducing
-    this to 2 MB lets snakemake's monitoring threads fit within the cap.
-    SLURM jobs inherit cluster defaults and are unaffected.
-    """
-    try:
-        soft, hard = resource.getrlimit(resource.RLIMIT_STACK)
-        target = 2 * 1024 * 1024  # 2 MB per thread stack
-        if soft == resource.RLIM_INFINITY or soft > target:
-            resource.setrlimit(resource.RLIMIT_STACK, (target, hard))
-    except (ValueError, resource.error):
-        pass
-
-
 def cmd_run(args):
     """Run the BeeGees pipeline."""
-    _reduce_thread_stack_size()
     configfile = Path(args.config)
     if not configfile.exists():
         print(f"ERROR: config file not found: {configfile}", file=sys.stderr)
         print(f"  Tip: run 'beegees init' to create a template config in the current directory,", file=sys.stderr)
         print(f"       or supply the path to an existing config with --config /path/to/config.yaml", file=sys.stderr)
         return 1
-
-    log_file = Path(args.log_file) if args.log_file else None
 
     if not args.dryrun:
         unlock_cmd = build_snakemake_cmd(
@@ -80,8 +59,19 @@ def cmd_run(args):
         dryrun=args.dryrun,
         unlock=False,
         extra_args=args.snakemake_args or [],
-        log_file=log_file,
     )
+
+    if args.log_file:
+        with open(args.log_file, "w") as log_fh:
+            proc = subprocess.Popen(
+                run_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+            )
+            for line in proc.stdout:
+                sys.stdout.write(line)
+                log_fh.write(line)
+            proc.wait()
+        return proc.returncode
+
     return subprocess.run(run_cmd).returncode
 
 
