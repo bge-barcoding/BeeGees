@@ -2,6 +2,7 @@
 import argparse
 import copy
 import csv
+import os
 import shutil
 import subprocess
 import sys
@@ -67,6 +68,7 @@ def _print_run_banner(configfile: Path) -> None:
 
 def cmd_run(args):
     """Run the BeeGees pipeline."""
+    os.environ.setdefault("MALLOC_ARENA_MAX", "8")
     configfile = Path(args.config)
     if not configfile.exists():
         print(f"ERROR: config file not found: {configfile}", file=sys.stderr)
