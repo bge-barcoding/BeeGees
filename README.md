@@ -42,14 +42,14 @@ Snakemake workflow for recovering high-quality barcode sequences at scale, built
    - AT content filtering (removes suspected fungal/bacterial contamination) ([02_at_content_filter.py](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/02_at_content_filter.py))
    - Statistical outlier removal (eliminates reads dissimilar to initial consensus) ([03_statistical_outliers.py](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/03_statistical_outlier_filter.py))
    - Optional: Custom reference-based filtering ([04_reference_filter.py](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/04_reference_filter.py))
-   - Cleaned consensus generation and metrics aggregation ([05_consensus_generator.py](https://github.com/bge-barcoding/MitoGeneExtractor-BGE/blob/main/workflow/scripts/05_consensus_generator.py))
+   - Cleaned consensus generation and metrics aggregation ([05_consensus_generator.py](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/05_consensus_generator.py))
 6. **Barcode validation and selection** (see Validation Process section for more detail):
    - **Structural validation**: HMM-based barcode extraction, reading frame analysis, stop codon detection, and quality ranking of all generated barcode consensus sequences ([structural_validation.py](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/structural_validation.py))
    - **Local BLASTn search**: Parallel BLASTn searches of structurally validated barcodes against local reference database ([tv_local_blast.py](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/tv_local_blast.py))
    - **Taxonomic validation**: Hierarchical matching of BLAST results against expected taxonomy, selecting the best sequence per sample based on taxonomic match quality and alignment metrics ([tv_blast2taxonomy.py](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/tv_blast2taxonomy.py))
 7. **Statistics compilation**: Aggregation of QC, recovery, cleaning, filtering, and validation metrics into comprehensive CSV reports ([compile_barcoding_stats.py](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/compile_barcoding_stats.py)).
 8. **Final integration**: Merging of all pipeline metrics (read QC, MGE, fasta_cleaner, structural validation, taxonomic validation) into a unified output CSV ([val_csv_merger.py](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/val_csv_merger.py)).
-9. **Evaluate barcoding outcome**: Take unified CSV file and determine barcoding success (PASS/PARTIAL/FAIL) for each sample ([barcoding_outcome.py](https://github.com/SchistoDan/BeeGees/blob/main/workflow/scripts/barcoding_outcome.py)).
+9. **Evaluate barcoding outcome**: Take unified CSV file and determine barcoding success (PASS/PARTIAL/FAIL) for each sample ([barcoding_outcome.py](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/barcoding_outcome.py)).
 10. **Cleanup**: Removal of temporary files and redundant sample-specific logs.
 
 
@@ -185,12 +185,22 @@ rules: Each of the main rules in the config.yaml can specify the number of reque
 - See `profiles/` directory for config.yaml files for 'SLURM' or 'local' cluster submission parameters. Other than the default `slurm_partition` and `jobs` parameters, all other parameters can likely stay as they are unless you experience issues.
   - The default `slurm_partition` determines the SLURM cluster partition for each snakemake job, unless otherwise specified (in the config/config.yaml). It is recommended to set this to a partition with at least 12-24 hour time limits.
   - The `jobs` parameter dictates the maximium number of workflow jobs that can be run concurrently. The value to set jobs to depends on your specific cluster. If the value is too low, it will create a bottleneck and reduce run speed/efficiency. If the value is too high, you may hit filesystem limits, job submission limits, user resource quotas, and fairshare policies, resulting in many pending or idle jobs. For example, if your cluster had a per-user memory limit of 256G, setting jobs to 20 and allocating 32G memory to each MitoGeneExtractor job would result in only 8 MitoGeneExtractor jobs running in parallel and the remaining 12 jobs to be pending until memroy is available.
-- The profile (`profiles/local` or `profiles/slurm`) will need to be changed in `snakemake_run.sh` depending on your system and which one you use (see `$PROFILE` variable).
+- Set the desired profile (`local` or `slurm`) via the `--profile` flag of `beegees run`.
 
 ### Cluster submission ###
-- Depending on your system and whether you are using the 'SLURM' or 'local' snakemake profile, there are two ways to run the BeeGees pipeline:
-  - **SLURM**: Use [snakemake_run-sbatch.sh](https://github.com/SchistoDan/BeeGees/blob/main/snakemake_run-sbatch.sh). Run `sbatch snakemake_run-sbatch.sh` on the head/login node of your cluster. Submits the main snakemake coordinating job to the SLURM cluster using SBATCH, and will 'farm out' each job in the workflow to a new SBATCH job for increased parallelisation. Please change `--partition` in the SBATCH header section of the script to an appropriate cluster parition. The main snakemake coordinating job needs to run throughout the entire BeeGees run. It is therefore recommended to set this to a partition with at least 1 day-1 week time limits.
-  - **local**: Use [snakemake_run.sh](https://github.com/bge-barcoding/MitoGeneExtractor-BGE/blob/main/snakemake_run.sh). Simply run `./snakemake_run.sh` on your desired cluster compute node. This node will handle all job scheduling and job computation.
+Run BeeGees using the `beegees run` command with the appropriate profile:
+
+**SLURM** (recommended for HPC clusters): run directly on the login node — Snakemake farms each rule out as a separate SLURM job:
+```bash
+beegees run --config config/config.yaml --profile slurm
+```
+
+**local** (all rules run on the current node — suitable for interactive compute sessions or Galaxy deployments):
+```bash
+beegees run --config config/config.yaml --profile local
+```
+
+Use `beegees run --help` for additional options (e.g. `--cores`, `--dryrun`, `--log-file`).
 
 ---
 
@@ -200,16 +210,17 @@ output_dir/
 ├── **01_preprocessing/**
 │   ├── merge_mode/                                            # PE mode only
 │   │   ├── trimmed_data/
-│   │   │   ├── {sample}_merged.fq                             # Merged paired-end reads
-│   │   │   ├── {sample}_merged_clean.fq                       # Header-cleaned merged reads
-│   │   │   ├── {sample}_fastp_report.html                     # FastP HTML report
-│   │   │   ├── {sample}_fastp_report.json                     # FastP JSON report
-│   │   │   └── unpaired/                                      # Unpaired reads from merging
-│   │   └── logs/
-│   │       ├── clean_headers/
-│   │       │   └── clean_headers.log                          # Aggregated header cleaning logs
-│   │       ├── fastp/                                         # Individual FastP logs per sample
-│   │       └── final_cleanup_complete.txt
+│   │   │   └── {sample}/
+│   │   │       ├── {sample}_merged.fastq.gz                   # Merged paired-end reads
+│   │   │       ├── {sample}_merged_clean.fastq(.gz)           # Header-cleaned merged reads
+│   │   │       ├── {sample}_fastp_report.html                 # FastP HTML report
+│   │   │       └── {sample}_fastp_report.json                 # FastP JSON report
+│   │   ├── logs/
+│   │   │   ├── clean_headers/
+│   │   │   │   └── clean_headers.log                          # Aggregated header cleaning logs
+│   │   │   ├── fastp/                                         # Individual FastP logs per sample
+│   │   │   └── final_cleanup_complete.txt
+│   │   └── fastp_summary-merge.csv                            # Per-sample fastp QC summary
 │   ├── concat_mode/                                           # PE mode only
 │   │   ├── trimmed_data/
 │   │   │   └── {sample}/
@@ -219,29 +230,32 @@ output_dir/
 │   │   │       ├── {sample}_fastp_report.html                 # FastP HTML report
 │   │   │       ├── {sample}_fastp_report.json                 # FastP JSON report
 │   │   │       └── {sample}_concat.fastq_trimming_report.txt  # Trim Galore report
-│   │   └── logs/
-│   │       ├── concat/
-│   │       │   └── concat_reads.log                           # Aggregated concatenation logs
-│   │       ├── trim_galore/
-│   │       │   └── trim_galore.log                            # Aggregated Trim Galore logs
-│   │       ├── fastp/                                         # Individual FastP logs per sample
-│   │       ├── gzip/                                          # Compression logs per sample
-│   │       └── final_cleanup_complete.txt
+│   │   ├── logs/
+│   │   │   ├── concat/
+│   │   │   │   └── concat_reads.log                           # Aggregated concatenation logs
+│   │   │   ├── trim_galore/
+│   │   │   │   └── trim_galore.log                            # Aggregated Trim Galore logs
+│   │   │   ├── fastp/                                         # Individual FastP logs per sample
+│   │   │   ├── gzip/                                          # Compression logs per sample
+│   │   │   └── final_cleanup_complete.txt
+│   │   └── fastp_summary-concat.csv                           # Per-sample fastp QC summary
 │   └── se_mode/                                               # SE/Ultima mode only
 │       ├── trimmed_data/
 │       │   └── {sample}/
 │       │       ├── {sample}_se_trimmed.fastq                  # Trimmed SE reads
 │       │       ├── {sample}_fastp_report.html                 # FastP HTML report
 │       │       └── {sample}_fastp_report.json                 # FastP JSON report
-│       └── logs/
-│           ├── fastp/                                         # Individual FastP logs per sample
-│           └── final_cleanup_complete.txt
+│       ├── logs/
+│       │   ├── fastp/                                         # Individual FastP logs per sample
+│       │   └── final_cleanup_complete.txt
+│       └── fastp_summary-se.csv                               # Per-sample fastp QC summary
 │
 ├── **02_references/**                                         # Only if run_gene_fetch = true
 │   ├── protein/
 │   │   └── {sample}.fasta                                     # Protein references for each sample
 │   ├── genbank/                                               # GenBank records (if genbank: true)
-│   └── sequence_references.csv                                # Reference metadata
+│   ├── sequence_references.csv                                # Reference metadata
+│   └── gene_fetch.log                                         # Gene Fetch run log
 │
 ├── **03_barcode_recovery/**
 │   ├── merge_mode/                                            # PE mode only
@@ -358,25 +372,38 @@ output_dir/
 │   │   ├── out/
 │   │   ├── err/
 │   │   └── {run_name}_se-stats.csv
+│   ├── barcode_consensus_count.tsv                            # Per-sample consensus count summary
 │   ├── {run_name}_barcode_recovery_metrics.csv                # Combined statistics (PE = both modes; SE = se_mode only)
 │   └── {run_name}_all_cons_combined.fasta                     # All consensus sequences
 │
 ├── **04_barcode_validation/**
 │   ├── structural/                                            # Only if run_structural_validation = true
 │   │   ├── structural_validation.csv
-│   │   ├── {run_name}_full_sequences.fasta
-│   │   └── {run_name}_barcode_sequences.fasta
-│   └── taxonomic/                                             # Only if run_taxonomic_validation = true
-│       ├── 01_local_blast_output.csv
-│       ├── 02_taxonomic_validation.csv
-│       └── {run_name}_barcode_sequences.fasta
+│   │   └── output_barcode_all_passing.fasta                   # All structurally passing barcodes
+│   ├── taxonomic/                                             # Only if run_taxonomic_validation = true
+│   │   ├── metrics/
+│   │   │   ├── 01_local_blast_output.csv
+│   │   │   └── 02_taxonomic_validation.csv
+│   │   └── validated_barcodes.fasta
+│   └── logs/
+│       ├── structural_validation.log
+│       ├── 01_local_blast.log
+│       └── 02_taxonomic_validation.log
 │
 ├── **05_barcoding_outcome/**
-│   ├── barcoding_outcome.log
-│   └── barcoding_outcome.tsv
+│   ├── barcoding_outcome.tsv
+│   ├── plots/                                                 # PNG plots for MultiQC
+│   │   └── plots_complete.txt
+│   ├── multiqc_report/
+│   │   ├── mqc_in_data/                                       # MultiQC input data
+│   │   └── multiqc_report.html                               # Interactive MultiQC report
+│   └── logs/
+│       ├── multiqc_plots.log
+│       └── multiqc.log
 │
-├── {run_name}_final_validated_barcodes.fasta                  # Only if both validations run
-├── {run_name}_final_stats.csv                                 # Only if both validations run
+├── {run_name}_validated_barcodes.fasta                        # Only if both validations run
+├── {run_name}_final_metrics.csv                               # Unified per-sample metrics CSV
+├── multiqc_report.html                                        # Copy of MultiQC report (convenience)
 └── logs/
 ```
  
@@ -435,6 +462,14 @@ The barcode validation outputs are merged with pre-processing and barcode recove
 - Barcode recovery statistics (MGE, fasta_cleaner)
 - Structural validation metrics
 - Taxonomic validation results
+
+## MultiQC report
+A self-contained interactive HTML report (`05_barcoding_outcome/multiqc_report/multiqc_report.html`, also copied to `{output_dir}/multiqc_report.html`) is generated at the end of every run, integrating key pipeline metrics and visualisations across all samples:
+- Read QC summary (fastp)
+- Barcode recovery rates (MitoGeneExtractor)
+- Structural and taxonomic validation outcomes
+- Per-sample barcoding success (PASS/PARTIAL/FAIL)
+
 ---
 
 # Screening negative controls
