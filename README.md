@@ -1,5 +1,5 @@
-# Barcode gene Extraction and Evaluation from Genome Skims (BeeGees) Snakemake workflow #
-Snakemake workflow for recovering high-quality barcode sequences at scale, built around MitoGeneExtractor and adapted for genome skims of museum specimens.
+# Barcode gene Extraction and Evaluation from Genome Skims (BeeGees) pipeline #
+Analytical workflow for recovery of high-quality barcode sequences from low-coverage NGS data at scale, built around MitoGeneExtractor and adapted for genome skims of museum specimens.
 
 [![Snakemake](https://img.shields.io/badge/snakemake-9.9.0-brightgreen.svg?style=flat)](https://snakemake.readthedocs.io)
 [![Publication DOI](https://img.shields.io/badge/DOI-10.1111%2F1755--0998.70170-blue.svg)](https://doi.org/10.1111/1755-0998.70170)
@@ -17,10 +17,9 @@ Snakemake workflow for recovering high-quality barcode sequences at scale, built
 ---
 
 # Requirements #
-- [**MitoGeneExtractor**](https://github.com/cmayer/MitoGeneExtractor) version 1.9.6 (installed automatically via the conda env, see BeeGees_env.yaml).
 - **Paired-end (PE) reads** in .fastq.gz or .fastq format, _or_ **single-end (SE) reads** from Ultima Genomics sequencing in .fastq.gz or .fastq format.
-- **samples.csv** (generated manually, or as outlined below if working from BOLD sample metadata).
-- **sequence_references.csv** (generated manually, or using [Gene Fetch](https://github.com/bge-barcoding/gene_fetch?tab=readme-ov-file) within the workflow).
+- **samples.csv** (generated manually).
+- **sequence_references.csv** (generated manually, or via [Gene Fetch](https://github.com/bge-barcoding/gene_fetch?tab=readme-ov-file) within the workflow).
 - Activated **conda env** (see BeeGees_env.yaml).
 
 ---
@@ -57,7 +56,7 @@ Snakemake workflow for recovering high-quality barcode sequences at scale, built
 
 
 ## Generate input sample CSV file ##
-- This can be created manually, or via the [sample-processing](https://github.com/bge-barcoding/sample-processing) workflow.
+- This can be created manually, or via the [sample-processing](https://github.com/bge-barcoding/sample-processing) workflow if working from specimen metadata downloaded from the Barcode of Life Data System (BOLD).
 - The file must contain the following headers: **'ID', 'forward', and 'taxid' _OR_ 'phylum->species'**. The `reverse` column is not required if running SE Ultima data.
   - `ID`: Unique sample identifier. Due to regex matching and statistics aggregation, the sample ID will be considered as the string before the first underscore. **It is therefore recommended that sample names do not use '_' characters.** E.g. BSNHM002-24 instead of BSNHM002_24, or P3-1-A10-2-G1 instead of P3_1_A10_2_G1.
   - `forward`: Absolute path to the forward (R1) read file. In fastq/fq format, either gzipped or not. For SE/Ultima runs, this is the only read file required.
