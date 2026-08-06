@@ -10,6 +10,7 @@ Snakemake workflow for recovering high-quality barcode sequences at scale, built
  - [Cluster configuration](#Cluster-configuration-using-Snakemake-profiles)
  - [Results structure](#Results-structure)
  - [Validation process](#Validation-process)
+ - [Screening negative controls](#Screening-negative-controls)
  - [Contributing](#Contributing)
  - [Future developments](#Future-developments)
 
@@ -435,7 +436,16 @@ The barcode validation outputs are merged with pre-processing and barcode recove
 - Structural validation metrics
 - Taxonomic validation results
 ---
- 
+
+# Screening negative controls
+If you have negative control(s), such as well H12 in a 96-well plate, we recommend including these in the `samples.csv` and using the Lowest COmmon Ancestor (LCA) as the input/expected taxonomy. 
+
+In our testing, we have found this is often suitable for identifying inter-well contamination within a plate, whether a barcode consensus sequence is succesfully constructed or not. For example, in a plate of Hymenoptera samples, where some of which are from the family Ichneumonidae and some from Braconidae, the LCA would be Hymenoptera.
+
+
+---
+
+
 # Citations and contributions #
  
 ## Cite BeeGees ##
