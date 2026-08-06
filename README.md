@@ -470,6 +470,8 @@ A self-contained interactive HTML report (`05_barcoding_outcome/multiqc_report/m
 - Structural and taxonomic validation outcomes
 - Per-sample barcoding success (PASS/PARTIAL/FAIL)
 
+[View an example MultiQC report (10 samples)](docs/examples/multiqc_report.html)
+
 ---
 
 # Screening negative controls
