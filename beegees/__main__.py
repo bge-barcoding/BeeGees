@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import sys
+import yaml
 from pathlib import Path
 
 from beegees import __version__
@@ -41,7 +42,6 @@ def _print_run_banner(configfile: Path) -> None:
     instances the SLURM executor spawns, keeping SLURM job logs clean.
     """
     try:
-        import yaml
         with open(configfile) as fh:
             cfg = yaml.safe_load(fh)
         run_mode = "unknown"
