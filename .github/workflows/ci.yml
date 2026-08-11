@@ -26,9 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Only the version the package declares support for. When the
-        # `requires-python` upper cap is relaxed, add "3.12" here.
-        python-version: ["3.11"]
+        python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
 
