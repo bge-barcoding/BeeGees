@@ -20,7 +20,9 @@ Analytical workflow for recovery of high-quality barcode sequences from low-cove
 - **Paired-end (PE) reads** in .fastq.gz or .fastq format, _or_ **single-end (SE) reads** from Ultima Genomics sequencing in .fastq.gz or .fastq format.
 - **samples.csv** (generated manually).
 - **sequence_references.csv** (generated manually, or via [Gene Fetch](https://github.com/bge-barcoding/gene_fetch?tab=readme-ov-file) within the workflow).
-- Activated **conda env** (see BeeGees_env.yaml).
+- Activated **conda env** (see beegees_env.yaml).
+
+> **Note for pip users:** All scientific tools (Snakemake, MitoGeneExtractor, fastp, TrimGalore, BLAST, nhmmer, etc.) come from the BeeGees conda environment. Installing via `pip install beegees` provides the CLI only — the pipeline will not run without the beegees conda environment active.
 
 ---
 

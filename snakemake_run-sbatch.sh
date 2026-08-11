@@ -9,7 +9,7 @@
 ## Conda environment
 source ~/apps/conda/etc/profile.d/conda.sh
 
-conda activate BeeGees_env
+conda activate beegees_env
 
 # Setup logging
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
