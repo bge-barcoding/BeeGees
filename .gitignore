@@ -1,8 +1,9 @@
-# Python packaging artefacts (galaxy-implementation branch only)
-beegees/
-beegees.egg-info/
-tests/
-
-# Python cache
 __pycache__/
 *.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+.snakemake/
+*.log
+.DS_Store

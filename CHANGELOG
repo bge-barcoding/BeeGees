@@ -1,0 +1,11 @@
+# Changelog
+
+## v3.0.3 (2026-08-11)
+
+Initial PyPI release.
+
+- Full Snakemake workflow for PE (concat/merge) and SE (Ultima Genomics) barcode recovery
+- Barcode validation: structural (HMM-based) and taxonomic (local BLASTn)
+- `beegees run` CLI with `--profile local` and `--profile slurm` support
+- Bundled config and Snakemake profiles installable via `pip install beegees`
+- MultiQC report integration across all samples
