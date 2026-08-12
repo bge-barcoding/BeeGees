@@ -32,7 +32,7 @@ gene_fetch:
    gene: "coi"                                   # Target gene (e.g., cox1, rbcl, matk)
    type: "both"                                  # Sequence type to fetch: "protein" or "both" (protein + nucleotide)
    minimum_length: "500"                         # Minimum length of protein reference(s) to fetch (default: 500aa)
-   input_type: "hierarchical"                           # Does the 'samples.csv' contain a 'taxid' column or 'hierarchical' taxonomic information columns (default: taxid)? - see Gene Fetch docs for more detail
+   input_type: "hierarchical"                    # Does the 'samples.csv' contain a 'taxid' column or 'hierarchical' taxonomic information columns (default: taxid)? - see Gene Fetch docs for more detail
    genbank: true                                 # Download GenBank records for retrieved pseudo-reference sequences
 
 
@@ -59,7 +59,7 @@ barcode_recovery:
 
 ## Post-processing of aligned reads for cleaning (using fasta_cleaner)
 # fasta_cleaner undertakes 6 steps - 1:Human cox1 similarity filtering, 2:AT-content filtering compared to consensus, 3:Statistical outlier filtering compared to consensus, 4:Custom reference-based filtering, 5:Consensus Generation, 6:Metrics aggregation. 
-# See README.md and docstring of each script (/workflow/scripts) for more detailed parameter information
+# See README.md and docstring of each script (beegees/workflow/scripts) for more detailed parameter information
 fasta_cleaner:
   consensus_threshold: 0.5                       # Threshold at which bases at each position must 'agree' to be incldued in the consensus (0-1)
   human_threshold: 0.95                          # Threshold at which reads are removed due to similarity with human COI (0-1)
@@ -80,7 +80,7 @@ structural_validation:
 ## Taxonomic validation
 taxonomic_validation:
     blast_db: "/path/to/BOLDistilled/"           # Path to BLASTn database directory or FASTA file
-    db_taxonomy: "/PATH/TO/BOLDistilled/BOLDistilled_taxonomy/source/BOLDistilled_COI_Jul2025_TAXONOMY.tsv"
+    db_taxonomy: "/PATH/TO/BOLDistilled/BOLDistilled_taxonomy/source/BOLDistilled_COI_[version]_TAXONOMY.tsv"
     taxval_rank: "family"                        # Taxonomic rank for validation (phylum, class, order, family, genus, species) (default & recommended: family)
     expected_taxonomy: "/PATH/TO/EXPECTED_TAXONOMY"
                                                  # It must contain the following columns: ID,phylum,class,order,family,genus,speces. ID must equal 'ID' from samples_file above
@@ -99,70 +99,70 @@ taxonomic_validation:
 
 ## Resource allocation for each rule. Memory shown in Mb (mem_mb), e.g. 2048 = 2G memory. Rules have dynamic memory scaling upon retry (mem_mb * retry #).
 rules:
-  gene_fetch:                                    # Gene Fetch
+  gene_fetch:                                    # Gene Fetch: reference retrieval from NCBI GenBank
     mem_mb: 8192
     threads: 4
     partition: long
-  fastp_qc:                                      # Fastp (merge and concat modes)
+  fastp_qc:                                      # fastp: adapter trimming, QC, merging/deduplication (PE merge and concat modes)
     mem_mb: 16384
     threads: 4
-  clean_headers_merge:                           # Clean fastq headers (merge mdoe)
-    mem_mb: 16384
-    threads: 4
-  fastq_concat:                                  # Concatentation of fastp QC'd fastq files (concat mode)
-    mem_mb: 16384
-    threads: 4
-  quality_trim:                                  # Trim Galore (concat mode)
-    mem_mb: 16384
-    threads: 4
-  downsample:                                    # Downsampling via reformat.sh (concat/merge/se modes)
+  clean_headers_merge:                           # Clean fastq headers for MitoGeneExtractor compatibility (merge mode)
+    mem_mb: 8192
+    threads: 1
+  fastq_concat:                                  # Concatenation of fastp QC'd R1+R2 fastq files (concat mode)
+    mem_mb: 8192
+    threads: 1
+  quality_trim:                                  # Trim Galore: secondary quality trimming of concatenated reads (concat mode)
     mem_mb: 8192
     threads: 4
-  MitoGeneExtractor:                             # MitoGeneExtractor (concat and merge mode)
+  downsample:                                    # reformat.sh: optional read downsampling (concat/merge/SE modes)
+    mem_mb: 8192
+    threads: 4
+  MitoGeneExtractor:                             # MitoGeneExtractor: protein-guided barcode extraction (concat/merge/SE modes); single-threaded (Exonerate)
     mem_mb: 32768
-    threads: 8
+    threads: 1
     partition: himem
-  rename_and_combine_cons:                       # Clean and rename fasta headers
+  rename_and_combine_cons:                       # Standardise and combine MGE consensus FASTA headers across parameter combinations
     mem_mb: 8192
     threads: 4
-  gzip_merged_clean:                             # Gzip *_merged_clean.fastq files
+  gzip_merged_clean:                             # Gzip *_merged_clean.fastq files to reclaim disk space
+    mem_mb: 8192
+    threads: 4
+  human_cox1_filter:                             # 01_human_cox1_filter.py: remove human COX1 contamination
     mem_mb: 16384
     threads: 4
-  human_cox1_filter:                             # 01_human_cox1_filter.py
-    mem_mb: 32768
-    threads: 8
-  at_content_filter:                             # 02_at_content_filter.py
-    mem_mb: 32768
-    threads: 8
-  statistical_outlier_filter:                    # 03_statistical_outlier.py
-    mem_mb: 32768
-    threads: 8
-  reference_filter:                              # 04_reference_filter.py
+  at_content_filter:                             # 02_at_content_filter.py: remove reads with aberrant AT content
+    mem_mb: 16384
+    threads: 4
+  statistical_outlier_filter:                    # 03_statistical_outlier_filter.py: remove reads statistically dissimilar to the consensus
+    mem_mb: 16384
+    threads: 4
+  reference_filter:                              # 04_reference_filter.py: optional reference-based sequence retention or contaminant removal
     mem_mb: 4096
     threads: 1
-  consensus_generation:                          # 05_consensus_generator.py
+  consensus_generation:                          # 05_consensus_generator.py: generate cleaned consensus sequences and aggregate metrics
     mem_mb: 8192
     threads: 4
-  extract_stats_to_csv:                          # mge_stats.py
-    mem_mb: 16384
-    threads: 4
-  structural_validation:                         # structural_validation.py
-    mem_mb: 32768
-    threads: 16
-    partition: himem
-  taxonomic_validation:                          # tv_local blast.py
-    mem_mb: 51200
-    threads: 32                                  # Minimum = 4 (4 threads given to each parallised BLASTn run)
-    partition: himem
-  blast2taxonomy:                                # tv_blast2taxonomy.py
-    mem_mb: 16384
-    threads: 4
-  download_taxdump:
+  extract_stats_to_csv:                          # mge_stats.py: extract per-sample MGE alignment statistics to CSV
+    mem_mb: 8192
     threads: 1
+  structural_validation:                         # structural_validation.py: HMM-based extraction, reading frame and stop-codon checks; nhmmer is single-threaded
+    mem_mb: 32768
+    threads: 1
+    partition: himem
+  taxonomic_validation:                          # tv_local_blast.py: parallel BLASTn searches against local reference database
+    mem_mb: 32768
+    threads: 16                                  # Minimum = 4 (4 threads per parallelised BLASTn process)
+    partition: himem
+  blast2taxonomy:                                # tv_blast2taxonomy.py: hierarchical taxonomic matching and best-barcode selection
+    mem_mb: 16384
+    threads: 4
+  download_taxdump:                              # Download NCBI taxdump for blast2taxonomy
     mem_mb: 4096
-  multiqc_plots:
+    threads: 1
+  multiqc_plots:                                 # Generate per-sample summary plots from pipeline metrics
+    mem_mb: 8192
     threads: 2
+  multiqc:                                       # MultiQC: aggregate all QC reports into a single interactive HTML report
     mem_mb: 8192
-  multiqc:
     threads: 1
-    mem_mb: 8192
