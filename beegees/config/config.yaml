@@ -32,7 +32,7 @@ gene_fetch:
    gene: "coi"                                   # Target gene (e.g., cox1, rbcl, matk)
    type: "both"                                  # Sequence type to fetch: "protein" or "both" (protein + nucleotide)
    minimum_length: "500"                         # Minimum length of protein reference(s) to fetch (default: 500aa)
-   input_type: "hierarchical"                           # Does the 'samples.csv' contain a 'taxid' column or 'hierarchical' taxonomic information columns (default: taxid)? - see Gene Fetch docs for more detail
+   input_type: "hierarchical"                    # Does the 'samples.csv' contain a 'taxid' column or 'hierarchical' taxonomic information columns (default: taxid)? - see Gene Fetch docs for more detail
    genbank: true                                 # Download GenBank records for retrieved pseudo-reference sequences
 
 
@@ -59,7 +59,7 @@ barcode_recovery:
 
 ## Post-processing of aligned reads for cleaning (using fasta_cleaner)
 # fasta_cleaner undertakes 6 steps - 1:Human cox1 similarity filtering, 2:AT-content filtering compared to consensus, 3:Statistical outlier filtering compared to consensus, 4:Custom reference-based filtering, 5:Consensus Generation, 6:Metrics aggregation. 
-# See README.md and docstring of each script (/workflow/scripts) for more detailed parameter information
+# See README.md and docstring of each script (beegees/workflow/scripts) for more detailed parameter information
 fasta_cleaner:
   consensus_threshold: 0.5                       # Threshold at which bases at each position must 'agree' to be incldued in the consensus (0-1)
   human_threshold: 0.95                          # Threshold at which reads are removed due to similarity with human COI (0-1)
@@ -80,7 +80,7 @@ structural_validation:
 ## Taxonomic validation
 taxonomic_validation:
     blast_db: "/path/to/BOLDistilled/"           # Path to BLASTn database directory or FASTA file
-    db_taxonomy: "/PATH/TO/BOLDistilled/BOLDistilled_taxonomy/source/BOLDistilled_COI_Jul2025_TAXONOMY.tsv"
+    db_taxonomy: "/PATH/TO/BOLDistilled/BOLDistilled_taxonomy/source/BOLDistilled_COI_[version]_TAXONOMY.tsv"
     taxval_rank: "family"                        # Taxonomic rank for validation (phylum, class, order, family, genus, species) (default & recommended: family)
     expected_taxonomy: "/PATH/TO/EXPECTED_TAXONOMY"
                                                  # It must contain the following columns: ID,phylum,class,order,family,genus,speces. ID must equal 'ID' from samples_file above
@@ -99,7 +99,7 @@ taxonomic_validation:
 
 ## Resource allocation for each rule. Memory shown in Mb (mem_mb), e.g. 2048 = 2G memory. Rules have dynamic memory scaling upon retry (mem_mb * retry #).
 rules:
-  gene_fetch:                                    # Gene Fetch: reference retrieval from NCBI GenBank (network-bound)
+  gene_fetch:                                    # Gene Fetch: reference retrieval from NCBI GenBank
     mem_mb: 8192
     threads: 4
     partition: long
@@ -118,7 +118,7 @@ rules:
   downsample:                                    # reformat.sh: optional read downsampling (concat/merge/SE modes)
     mem_mb: 8192
     threads: 4
-  MitoGeneExtractor:                             # MitoGeneExtractor: protein-guided barcode extraction (concat and merge modes); single-threaded (Exonerate)
+  MitoGeneExtractor:                             # MitoGeneExtractor: protein-guided barcode extraction (concat/merge/SE modes); single-threaded (Exonerate)
     mem_mb: 32768
     threads: 1
     partition: himem
@@ -128,10 +128,10 @@ rules:
   gzip_merged_clean:                             # Gzip *_merged_clean.fastq files to reclaim disk space
     mem_mb: 8192
     threads: 4
-  human_cox1_filter:                             # 01_human_cox1_filter.py: remove human COX1 contamination (common in museum specimens)
+  human_cox1_filter:                             # 01_human_cox1_filter.py: remove human COX1 contamination
     mem_mb: 16384
     threads: 4
-  at_content_filter:                             # 02_at_content_filter.py: remove reads with aberrant AT content (fungal/bacterial contamination)
+  at_content_filter:                             # 02_at_content_filter.py: remove reads with aberrant AT content
     mem_mb: 16384
     threads: 4
   statistical_outlier_filter:                    # 03_statistical_outlier_filter.py: remove reads statistically dissimilar to the consensus
@@ -157,7 +157,7 @@ rules:
   blast2taxonomy:                                # tv_blast2taxonomy.py: hierarchical taxonomic matching and best-barcode selection
     mem_mb: 16384
     threads: 4
-  download_taxdump:                              # Download NCBI taxdump for blast2taxonomy (run once)
+  download_taxdump:                              # Download NCBI taxdump for blast2taxonomy
     mem_mb: 4096
     threads: 1
   multiqc_plots:                                 # Generate per-sample summary plots from pipeline metrics
