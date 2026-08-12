@@ -3,9 +3,9 @@ name: CI
 # Runs on the packaging branch and main, for both direct pushes and PRs.
 on:
   push:
-    branches: [main, galaxy-implementation]
+    branches: [main]
   pull_request:
-    branches: [main, galaxy-implementation]
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
