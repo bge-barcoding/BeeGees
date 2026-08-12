@@ -99,70 +99,70 @@ taxonomic_validation:
 
 ## Resource allocation for each rule. Memory shown in Mb (mem_mb), e.g. 2048 = 2G memory. Rules have dynamic memory scaling upon retry (mem_mb * retry #).
 rules:
-  gene_fetch:                                    # Gene Fetch
+  gene_fetch:                                    # Gene Fetch: reference retrieval from NCBI GenBank (network-bound)
     mem_mb: 8192
     threads: 4
     partition: long
-  fastp_qc:                                      # Fastp (merge and concat modes)
+  fastp_qc:                                      # fastp: adapter trimming, QC, merging/deduplication (PE merge and concat modes)
     mem_mb: 16384
     threads: 4
-  clean_headers_merge:                           # Clean fastq headers (merge mdoe)
-    mem_mb: 16384
-    threads: 4
-  fastq_concat:                                  # Concatentation of fastp QC'd fastq files (concat mode)
-    mem_mb: 16384
-    threads: 4
-  quality_trim:                                  # Trim Galore (concat mode)
-    mem_mb: 16384
-    threads: 4
-  downsample:                                    # Downsampling via reformat.sh (concat/merge/se modes)
+  clean_headers_merge:                           # Clean fastq headers for MitoGeneExtractor compatibility (merge mode)
+    mem_mb: 8192
+    threads: 1
+  fastq_concat:                                  # Concatenation of fastp QC'd R1+R2 fastq files (concat mode)
+    mem_mb: 8192
+    threads: 1
+  quality_trim:                                  # Trim Galore: secondary quality trimming of concatenated reads (concat mode)
     mem_mb: 8192
     threads: 4
-  MitoGeneExtractor:                             # MitoGeneExtractor (concat and merge mode)
+  downsample:                                    # reformat.sh: optional read downsampling (concat/merge/SE modes)
+    mem_mb: 8192
+    threads: 4
+  MitoGeneExtractor:                             # MitoGeneExtractor: protein-guided barcode extraction (concat and merge modes); single-threaded (Exonerate)
     mem_mb: 32768
-    threads: 8
+    threads: 1
     partition: himem
-  rename_and_combine_cons:                       # Clean and rename fasta headers
+  rename_and_combine_cons:                       # Standardise and combine MGE consensus FASTA headers across parameter combinations
     mem_mb: 8192
     threads: 4
-  gzip_merged_clean:                             # Gzip *_merged_clean.fastq files
+  gzip_merged_clean:                             # Gzip *_merged_clean.fastq files to reclaim disk space
+    mem_mb: 8192
+    threads: 4
+  human_cox1_filter:                             # 01_human_cox1_filter.py: remove human COX1 contamination (common in museum specimens)
     mem_mb: 16384
     threads: 4
-  human_cox1_filter:                             # 01_human_cox1_filter.py
-    mem_mb: 32768
-    threads: 8
-  at_content_filter:                             # 02_at_content_filter.py
-    mem_mb: 32768
-    threads: 8
-  statistical_outlier_filter:                    # 03_statistical_outlier.py
-    mem_mb: 32768
-    threads: 8
-  reference_filter:                              # 04_reference_filter.py
+  at_content_filter:                             # 02_at_content_filter.py: remove reads with aberrant AT content (fungal/bacterial contamination)
+    mem_mb: 16384
+    threads: 4
+  statistical_outlier_filter:                    # 03_statistical_outlier_filter.py: remove reads statistically dissimilar to the consensus
+    mem_mb: 16384
+    threads: 4
+  reference_filter:                              # 04_reference_filter.py: optional reference-based sequence retention or contaminant removal
     mem_mb: 4096
     threads: 1
-  consensus_generation:                          # 05_consensus_generator.py
+  consensus_generation:                          # 05_consensus_generator.py: generate cleaned consensus sequences and aggregate metrics
     mem_mb: 8192
     threads: 4
-  extract_stats_to_csv:                          # mge_stats.py
-    mem_mb: 16384
-    threads: 4
-  structural_validation:                         # structural_validation.py
-    mem_mb: 32768
-    threads: 16
-    partition: himem
-  taxonomic_validation:                          # tv_local blast.py
-    mem_mb: 51200
-    threads: 32                                  # Minimum = 4 (4 threads given to each parallised BLASTn run)
-    partition: himem
-  blast2taxonomy:                                # tv_blast2taxonomy.py
-    mem_mb: 16384
-    threads: 4
-  download_taxdump:
+  extract_stats_to_csv:                          # mge_stats.py: extract per-sample MGE alignment statistics to CSV
+    mem_mb: 8192
     threads: 1
+  structural_validation:                         # structural_validation.py: HMM-based extraction, reading frame and stop-codon checks; nhmmer is single-threaded
+    mem_mb: 32768
+    threads: 1
+    partition: himem
+  taxonomic_validation:                          # tv_local_blast.py: parallel BLASTn searches against local reference database
+    mem_mb: 32768
+    threads: 16                                  # Minimum = 4 (4 threads per parallelised BLASTn process)
+    partition: himem
+  blast2taxonomy:                                # tv_blast2taxonomy.py: hierarchical taxonomic matching and best-barcode selection
+    mem_mb: 16384
+    threads: 4
+  download_taxdump:                              # Download NCBI taxdump for blast2taxonomy (run once)
     mem_mb: 4096
-  multiqc_plots:
+    threads: 1
+  multiqc_plots:                                 # Generate per-sample summary plots from pipeline metrics
+    mem_mb: 8192
     threads: 2
+  multiqc:                                       # MultiQC: aggregate all QC reports into a single interactive HTML report
     mem_mb: 8192
-  multiqc:
     threads: 1
-    mem_mb: 8192
