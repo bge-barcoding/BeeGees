@@ -1,2 +1,6 @@
 """BeeGees: DNA barcoding from genome skims."""
-__version__ = "3.0.3"
+from importlib.metadata import version, PackageNotFoundError
+try:
+    __version__ = version("beegees")
+except PackageNotFoundError:
+    __version__ = "unknown"
