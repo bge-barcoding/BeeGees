@@ -1770,38 +1770,32 @@ rule remove_exonerate_intermediates:
 # Create list of alignment files for stats for merge mode
 rule create_alignment_log_merge:
     input:
-        alignment_files=lambda wildcards: glob.glob(os.path.join(barcode_recovery_dir_merge, "alignment/*_align_*.fas")),
         concat_cons=os.path.join(barcode_recovery_dir_merge, f"consensus/{run_name}_cons_combined-merge.fasta")
     output:
         alignment_log=os.path.join(barcode_recovery_dir_merge, "logs/mge/alignment_files.log")
+    params:
+        alignment_dir=os.path.join(barcode_recovery_dir_merge, "alignment")
     threads: 1
     resources:
         mem_mb=4096
     retries: 3
-    run:
-        alignment_files = input.alignment_files
-
-        with open(output.alignment_log, 'w') as log_file:
-            for file in alignment_files:
-                log_file.write(f"{file}\n")
+    shell:
+        "find {params.alignment_dir} -name '*_align_*.fas' -type f 2>/dev/null | sort > {output.alignment_log} || touch {output.alignment_log}"
 
 # Create list of alignment files for stats for concat mode
 rule create_alignment_log_concat:
     input:
-        alignment_files=lambda wildcards: glob.glob(os.path.join(barcode_recovery_dir_concat, "alignment/*_align_*.fas")),
         concat_cons=os.path.join(barcode_recovery_dir_concat, f"consensus/{run_name}_cons_combined-concat.fasta")
     output:
         alignment_log=os.path.join(barcode_recovery_dir_concat, "logs/mge/alignment_files.log")
+    params:
+        alignment_dir=os.path.join(barcode_recovery_dir_concat, "alignment")
     threads: 1
     resources:
         mem_mb=4096
     retries: 3
-    run:
-        alignment_files = input.alignment_files
-
-        with open(output.alignment_log, 'w') as log_file:
-            for file in alignment_files:
-                log_file.write(f"{file}\n")
+    shell:
+        "find {params.alignment_dir} -name '*_align_*.fas' -type f 2>/dev/null | sort > {output.alignment_log} || touch {output.alignment_log}"
                 
 
 # ===== FASTA CLEANER RULES - MERGE MODE =====
@@ -3433,18 +3427,17 @@ rule remove_exonerate_intermediates_se:
 # ----- SE alignment log (mirrors create_alignment_log_concat) -----
 rule create_alignment_log_se:
     input:
-        alignment_files=lambda wildcards: glob.glob(os.path.join(barcode_recovery_dir_se, "alignment/*_align_*.fas")),
         concat_cons=os.path.join(barcode_recovery_dir_se, f"consensus/{run_name}_cons_combined-se.fasta")
     output:
         alignment_log=os.path.join(barcode_recovery_dir_se, "logs/mge/alignment_files.log")
+    params:
+        alignment_dir=os.path.join(barcode_recovery_dir_se, "alignment")
     threads: 1
     resources:
         mem_mb=4096
     retries: 3
-    run:
-        with open(output.alignment_log, 'w') as log_file:
-            for file in input.alignment_files:
-                log_file.write(f"{file}\n")
+    shell:
+        "find {params.alignment_dir} -name '*_align_*.fas' -type f 2>/dev/null | sort > {output.alignment_log} || touch {output.alignment_log}"
 
 # ===== FASTA CLEANER RULES - SE MODE =====
 rule human_cox1_filter_se:
