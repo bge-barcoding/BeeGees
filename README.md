@@ -92,7 +92,7 @@ Fill in paths to required files, set parameters, credentials, and resource alloc
 conda activate beegees_env
 
 # Execute beegees submissions script
-sbatch run_slurm.sh
+bash run_slurm.sh
 ```
 
 **Local** (all rules run on the current node - suitable for interactive compute sessions):
