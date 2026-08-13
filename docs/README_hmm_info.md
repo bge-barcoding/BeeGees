@@ -3,14 +3,18 @@
 ## COI-5P
 - Created Sat Mar 28 02:53:28 2020
 - Comprised of 38,243 COI-5P sequences
-- 658bp in length
+- **658bp in length**
+
 ### Construction process:
 As outlined in [FinPROTAX](https://github.com/psomervuo/FinPROTAX/tree/main). Please see the README.md within FinPROTAX.zip for more information on the cosntruction process.
+
+
 
 ## rbcL barcoding region
 - Created Wed Nov 12 13:11:28 2025
 - Comprised of 13,580 rbcL barcoding region sequences
 - 601bp in length
+
 ### Construction process:
 1. 441,131 rbcL sequences downloaded from the following sources:
    - Full rbcL database produced in [Dubious et al (2022)](https://bmcgenomdata.biomedcentral.com/articles/10.1186/s12863-022-01067-5), accessible [here](https://figshare.com/articles/online_resource/QIIME2_RefDB_development_zip/17040680?file=56104238) = 378,134 sequences
