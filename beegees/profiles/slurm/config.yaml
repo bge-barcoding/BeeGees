@@ -12,9 +12,6 @@ default-resources:
   - runtime=720                       # Default wall-clock limit in MINUTES (720 = 12 h), passed to sbatch as -t. 
                                       # Override per-rule in the rules: block of config.yaml.
   # - slurm_account="<your_account>"  # Uncomment if the cluster requires an explicit account (-A). Find yours with: sacctmgr show user $USER
-  # - cpus_per_task=1                 # Uncomment to set a default thread count for rules with no `threads:` directive.
-  # - mem_mb=8000                     # Uncomment to set a default memory request. Without it, Snakemake falls back to its own heuristic, 
-                                      # which can under-request for the assembly-heavy rules.
 
 # --- Job submission ---
 jobs: 10                              # Maximum jobs in flight (submitted or running) at once. This is a fair-share/queue-etiquette limit rather 
