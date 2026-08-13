@@ -65,6 +65,7 @@ wget https://github.com/bge-barcoding/BeeGees/archive/refs/heads/main.zip
 ```
 pip install beegees
 ```
+> **Pip users:** after installation, run `beegees init` in your working directory to copy the template `config/`, `profiles/`, and `samples_template.csv` into the current directory. These files are required before running the pipeline (see section below).
 
 > `beegees` will be available as a conda package through bioconda in the near future.
 
@@ -78,16 +79,22 @@ pip install beegees
 conda env create -f beegees_env.yaml
 ```
 
-### 2. Complete samples.csv 
+### 2. (Pip users only) Generate config and profile templates
+This copies `config/config.yaml`, `profiles/`, and `samples_template.csv` into the current directory. Users who cloned the repository already have these files, and can skip to step 3.
+```
+beegees init
+```
+
+### 3. Complete samples.csv 
 Create the `samples.csv` or edit `/beegees/config/samples_template.csv`, with sample identifier (ID), forward (SE data-only) and reverse read paths (PE data), and heirarchical taxonomy or NCBI taxonomic identifiers (taxid) - [see section below for details](#Generate-input-sample-CSV-file).
 
-### 3. Download suitable BLASTn database and corresponding taxonomy mappings file
+### 4. Download suitable BLASTn database and corresponding taxonomy mappings file
 Required for taxonomic validation of generated barcode consensus sequences - [see section below for details on available databases](#Validation-process) or [guidance on creating your own BLASTn database and mapping file](https://github.com/bge-barcoding/BeeGees/blob/main/docs/README_custom_blast_dbs.md)
 
-### 4. Populate config.yaml for pipeline configuration
+### 5. Populate config.yaml for pipeline configuration
 Fill in paths to required files, set parameters, credentials, and resource allocations - [see section below for details](#Modifying-snakemake-configuration-file)
 
-### 5. Run BeeGees using the `beegees run` command with the appropriate profile:
+### 6. Run BeeGees using the `beegees run` command with the appropriate profile:
 
 **SLURM** (recommended for SLURM-based HPC clusters): run directly on the login node - Snakemake farms each rule out as a separate SLURM job:
 ```bash
