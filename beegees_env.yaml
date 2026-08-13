@@ -23,4 +23,4 @@ dependencies:
   - pip=24.2
   - pip:
       - biopython==1.84
-      - beegees==3.0.3
+      - beegees==3.0.4
