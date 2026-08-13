@@ -108,6 +108,7 @@ def cmd_run(args):
             for line in proc.stdout:
                 sys.stdout.write(line)
                 log_fh.write(line)
+                log_fh.flush()
             proc.wait()
         return proc.returncode
 

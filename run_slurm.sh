@@ -13,4 +13,4 @@ beegees run \
     --config beegees/config/config.yaml \
     --profile slurm \
     --log-file beegees.log \
-    2>&1 | tee beegees.log
+    2>&1

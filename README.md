@@ -104,7 +104,7 @@ srun --pty --mem=128G --cpus-per-task=16 --time=08:00:00 bash
 sbatch run_local.sh
 ```
 
-> Use `beegees run --help` for additional options (e.g. `--cores`, `--dryrun`, `--log-file`).
+> Use `beegees run --help` for additional options (e.g. `--cores`, `--dryrun`, `--log-file PATH` to write a live log file).
 > Depending on your HPC cluster architcture and job schedular, you may need to edit the partition in `run_*.sh`, `config.yaml` rule resource block, and `slurm_partition` in `profiles/slurm/config.yaml`
 
 
