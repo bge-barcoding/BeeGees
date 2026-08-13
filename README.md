@@ -1,7 +1,6 @@
 # BeeGees - Barcode gene Extraction and Evaluation from Genome Skims #
 
 [![Snakemake](https://img.shields.io/badge/snakemake-9.9.0-brightgreen.svg?style=flat)](https://snakemake.readthedocs.io)
-![PyPI Python Version](https://img.shields.io/pypi/pyversions/python)
 [![Publication DOI](https://img.shields.io/badge/DOI-10.1111%2F1755--0998.70170-blue.svg)](https://doi.org/10.1111/1755-0998.70170)
 [![CI](https://github.com/bge-barcoding/BeeGees/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bge-barcoding/BeeGees/actions/workflows/ci.yml)
 [![PyPI version](https://badge.fury.io/py/beegees.svg?icon=si%3Apython)](https://badge.fury.io/py/beegees)
