@@ -467,6 +467,8 @@ Reference data required per marker:
 
 > Guidance on building a custom BLASTn database and matching taxonomy TSV is in [`docs/README_custom_blast_dbs.md`](https://github.com/bge-barcoding/BeeGees/blob/main/docs/README_custom_blast_dbs.md).
 
+>  Information on how the supported barcode HMMs were constructed can be found in [`docs/README_hmm_info.md`](https://github.com/bge-barcoding/BeeGees/blob/main/docs/README_hmm_info.md).
+
 ## Structural validation ##
 Structural validation (via `structural_validation.py`) assesses every barcode consensus sequence to identify high-quality, protein-coding those suitable for taxonomic assignment. It outputs a CSV of structural, translation and quality-rank metrics for all sequences, plus `output_barcode_all_passing.fasta` containing every sequence that passes all five criteria below (a single process ID may have multiple passing sequences).
 
