@@ -74,48 +74,44 @@ pip install beegees
 
 
 # Quick start #
-### 1. Create beegees conda environment
-```
+
+> **Installation note:** `pip install beegees` provides the `beegees` CLI only — all scientific tool dependencies (Snakemake, MitoGeneExtractor, fastp, TrimGalore, BLAST, nhmmer, etc.) must come from the conda environment. A bioconda package that bundles all dependencies is planned; until then, the clone workflow below is recommended for all users.
+
+### 1. Clone the repository and create the conda environment
+```bash
+git clone https://github.com/bge-barcoding/BeeGees.git
+cd BeeGees
 conda env create -f beegees_env.yaml
-```
-
-### 2. (Pip users only) Generate config and profile templates
-This copies `config/config.yaml`, `profiles/`, and `samples_template.csv` into the current directory. Users who cloned the repository already have these files, and can skip to step 3.
-```
-beegees init
-```
-
-### 3. Complete samples.csv 
-Create the `samples.csv` or edit `/beegees/config/samples_template.csv`, with sample identifier (ID), forward (SE data-only) and reverse read paths (PE data), and heirarchical taxonomy or NCBI taxonomic identifiers (taxid) - [see section below for details](#Generate-input-sample-CSV-file).
-
-### 4. Download suitable BLASTn database and corresponding taxonomy mappings file
-Required for taxonomic validation of generated barcode consensus sequences - [see section below for details on available databases](#Validation-process) or [guidance on creating your own BLASTn database and mapping file](https://github.com/bge-barcoding/BeeGees/blob/main/docs/README_custom_blast_dbs.md)
-
-### 5. Populate config.yaml for pipeline configuration
-Fill in paths to required files, set parameters, credentials, and resource allocations - [see section below for details](#Modifying-snakemake-configuration-file)
-
-### 6. Run BeeGees using the `beegees run` command with the appropriate profile:
-
-**SLURM** (recommended for SLURM-based HPC clusters): run directly on the login node - Snakemake farms each rule out as a separate SLURM job:
-```bash
-# Activate beegees_env 
 conda activate beegees_env
-
-# Execute beegees submissions script
-bash run_slurm.sh
 ```
 
-**Local** (all rules run on the current node - suitable for interactive compute sessions):
+### 2. Complete samples.csv
+Create `samples.csv` or edit `beegees/config/samples_template.csv`, with sample identifier (ID), forward (SE data only) and reverse read paths (PE data), and hierarchical taxonomy or NCBI taxonomic identifiers (taxid) — [see section below for details](#samplescsv).
+
+### 3. Download a BLASTn database and taxonomy mappings file
+Required for taxonomic validation of generated barcode consensus sequences — [see section below for details on available databases](#validation-process) or [guidance on creating your own BLASTn database and mapping file](https://github.com/bge-barcoding/BeeGees/blob/main/docs/README_custom_blast_dbs.md).
+
+### 4. Populate config.yaml
+Fill in paths to required files, set parameters, credentials, and resource allocations — [see section below for details](#configyaml).
+
+### 5. Run BeeGees using the `beegees run` command with the appropriate profile:
+
+**SLURM** (recommended for SLURM-based HPC clusters): run directly on the login node — Snakemake farms each rule out as a separate SLURM job:
 ```bash
-# Create interactive SLURM session (resources are divided amongst rules based on their deliniated resource allocations, thereby determining the degree of parallelisation - see config.yaml rule resource block for allocations)
+sbatch run_slurm.sh
+```
+
+**Local** (all rules run on the current node — suitable for interactive compute sessions):
+```bash
+# Create an interactive SLURM session
 srun --pty --mem=128G --cpus-per-task=16 --time=08:00:00 bash
 
-# # Execute beegees submissions script
-sbatch run_local.sh
+# Run BeeGees locally
+bash run_local.sh
 ```
 
 > Use `beegees run --help` for additional options (e.g. `--cores`, `--dryrun`, `--log-file PATH` to write a live log file).
-> Depending on your HPC cluster architcture and job schedular, you may need to edit the partition in `run_*.sh`, `config.yaml` rule resource block, and `slurm_partition` in `profiles/slurm/config.yaml`
+> Depending on your HPC cluster architecture and job scheduler, you may need to edit the partition in `run_*.sh`, `config.yaml` rule resource block, and `slurm_partition` in `profiles/slurm/config.yaml`.
 
 
 # Workflow #
