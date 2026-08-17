@@ -50,7 +50,11 @@ def _print_run_banner(configfile: Path) -> None:
             with open(samples_file) as fh:
                 rows = list(csv.DictReader(fh))
             if rows:
-                has_r2 = [bool(str(r.get("R2", "")).strip()) for r in rows]
+                _r2_aliases = ("R2", "reverse", "rev", "read2")
+                has_r2 = [
+                    bool(str(next((r[a] for a in _r2_aliases if a in r), "")).strip())
+                    for r in rows
+                ]
                 run_mode = "PE" if all(has_r2) else "SE"
         display = copy.deepcopy(cfg)
         gf = display.get("gene_fetch", {})
