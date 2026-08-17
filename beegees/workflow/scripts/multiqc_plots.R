@@ -993,15 +993,20 @@ p_outcome <- ggplot(outcome_counts,
 ggsave(file.path(output_dir, "barcoding_outcome.png"),
        plot = p_outcome, width = 8, height = 6, dpi = 300)
 
-p_insert_density <- ggplot(df_fastp_concat, aes(x = insert_size_peak)) +
-  geom_density(alpha = 0.6, fill = "steelblue") +
-  theme_minimal() +
-  labs(x = "Insert size peak (bp)", y = "Density") +
-  theme(axis.text  = element_text(size = 13),
-        axis.title = element_text(size = 13))
+df_fastp_insert <- df_fastp_concat[!is.na(df_fastp_concat$insert_size_peak), ]
+if (nrow(df_fastp_insert) > 0) {
+  p_insert_density <- ggplot(df_fastp_insert, aes(x = insert_size_peak)) +
+    geom_density(alpha = 0.6, fill = "steelblue") +
+    theme_minimal() +
+    labs(x = "Insert size peak (bp)", y = "Density") +
+    theme(axis.text  = element_text(size = 13),
+          axis.title = element_text(size = 13))
 
-ggsave(file.path(output_dir, "fastp_insert_size_density.png"),
-       plot = p_insert_density, width = 8, height = 6, dpi = 300)
+  ggsave(file.path(output_dir, "fastp_insert_size_density.png"),
+         plot = p_insert_density, width = 8, height = 6, dpi = 300)
+} else {
+  cat("No insert size peak data (SE mode or all NA) — skipping insert size density plot\n")
+}
 
 p_dup_rate <- ggplot(df_fastp_concat, aes(x = duplication_rate)) +
   geom_histogram(alpha = 0.9, fill = "forestgreen", bins = 100) +
@@ -1020,75 +1025,83 @@ ggsave(file.path(output_dir, "fastp_duplication_rate.png"),
 # Plot 1a: n_reads_in violin + boxplot overlay
 df_plot_reads_in <- df_metrics[!is.na(df_metrics$n_reads_in), ]
 
-p_reads_in <- ggplot(df_plot_reads_in, aes(x = "", y = n_reads_in)) +
-  geom_violin(fill = "steelblue", alpha = 0.6) +
-  geom_boxplot(width = 0.1, fill = "steelblue", alpha = 0.8, outlier.shape = NA) +
-  labs(x = "", y = "Number of reads input to MGE") +
-  theme_minimal() +
-  theme(axis.text.x        = element_blank(),
-        axis.ticks.x       = element_blank(),
-        panel.grid.major.y = element_line(color = "gray90", linewidth = 0.5),
-        panel.grid.major.x = element_blank(),
-        axis.text.y        = element_text(size = 15),
-        axis.title.y       = element_text(size = 15)) +
-  scale_y_continuous(
-    labels = label_number(scale = 1e-6, suffix = "M"),
-    breaks = pretty(c(0, max(df_plot_reads_in$n_reads_in, na.rm = TRUE)), n = 8)
-  )
+if (nrow(df_plot_reads_in) >= 2 && length(unique(df_plot_reads_in$n_reads_in)) >= 2) {
+  p_reads_in <- ggplot(df_plot_reads_in, aes(x = "", y = n_reads_in)) +
+    geom_violin(fill = "steelblue", alpha = 0.6) +
+    geom_boxplot(width = 0.1, fill = "steelblue", alpha = 0.8, outlier.shape = NA) +
+    labs(x = "", y = "Number of reads input to MGE") +
+    theme_minimal() +
+    theme(axis.text.x        = element_blank(),
+          axis.ticks.x       = element_blank(),
+          panel.grid.major.y = element_line(color = "gray90", linewidth = 0.5),
+          panel.grid.major.x = element_blank(),
+          axis.text.y        = element_text(size = 15),
+          axis.title.y       = element_text(size = 15)) +
+    scale_y_continuous(
+      labels = label_number(scale = 1e-6, suffix = "M"),
+      breaks = pretty(c(0, max(df_plot_reads_in$n_reads_in, na.rm = TRUE)), n = 8)
+    )
 
-ggsave(file.path(output_dir, "mge_reads_in_violin.png"),
-       plot = p_reads_in, width = 6, height = 6, dpi = 300)
+  ggsave(file.path(output_dir, "mge_reads_in_violin.png"),
+         plot = p_reads_in, width = 6, height = 6, dpi = 300)
+} else {
+  cat("Insufficient n_reads_in variation (need >=2 distinct values) — skipping reads-in violin\n")
+}
 
 # Plot 3: n_reads_aligned histogram with violin inlay
 df_plot_aligned <- df_metrics[!is.na(df_metrics$n_reads_aligned), ]
 
-aligned_max    <- max(df_plot_aligned$n_reads_aligned, na.rm = TRUE)
-aligned_hist_y <- max(hist(df_plot_aligned$n_reads_aligned,
-                           breaks = 800, plot = FALSE)$counts) * 1.1
-inlay_y_max    <- max(8000, ceiling(aligned_max / 1000) * 1000)
+if (nrow(df_plot_aligned) >= 2 && length(unique(df_plot_aligned$n_reads_aligned)) >= 2) {
+  aligned_max    <- max(df_plot_aligned$n_reads_aligned, na.rm = TRUE)
+  aligned_hist_y <- max(hist(df_plot_aligned$n_reads_aligned,
+                             breaks = 800, plot = FALSE)$counts) * 1.1
+  inlay_y_max    <- max(8000, ceiling(aligned_max / 1000) * 1000)
 
-p_aligned_inlay <- ggplot(df_plot_aligned, aes(x = "", y = n_reads_aligned)) +
-  geom_violin(fill = "darkred", alpha = 0.7) +
-  labs(x = NULL, y = NULL) +
-  theme_minimal() +
-  theme(axis.text.x        = element_blank(),
-        axis.ticks.x       = element_blank(),
-        axis.text.y        = element_text(size = 8),
-        panel.background   = element_rect(fill = "white", color = "black", linewidth = 0.5)) +
-  scale_y_continuous(
-    labels = label_number(scale = 1e-3, suffix = "k"),
-    breaks = pretty(c(0, inlay_y_max), n = 4)
-  ) +
-  coord_cartesian(ylim = c(0, inlay_y_max))
+  p_aligned_inlay <- ggplot(df_plot_aligned, aes(x = "", y = n_reads_aligned)) +
+    geom_violin(fill = "darkred", alpha = 0.7) +
+    labs(x = NULL, y = NULL) +
+    theme_minimal() +
+    theme(axis.text.x        = element_blank(),
+          axis.ticks.x       = element_blank(),
+          axis.text.y        = element_text(size = 8),
+          panel.background   = element_rect(fill = "white", color = "black", linewidth = 0.5)) +
+    scale_y_continuous(
+      labels = label_number(scale = 1e-3, suffix = "k"),
+      breaks = pretty(c(0, inlay_y_max), n = 4)
+    ) +
+    coord_cartesian(ylim = c(0, inlay_y_max))
 
-# Materialise the inset as a grob under a null PDF device. ggplotGrob() needs an
-# active graphics device to measure its grobs; in a non-interactive Rscript run
-# with no device open it would otherwise spawn a stray Rplots.pdf in the working
-# directory. pdf(NULL) absorbs this with no file written.
-pdf(NULL)
-inlay_grob <- ggplotGrob(p_aligned_inlay)
-invisible(dev.off())
+  # Materialise the inset as a grob under a null PDF device. ggplotGrob() needs an
+  # active graphics device to measure its grobs; in a non-interactive Rscript run
+  # with no device open it would otherwise spawn a stray Rplots.pdf in the working
+  # directory. pdf(NULL) absorbs this with no file written.
+  pdf(NULL)
+  inlay_grob <- ggplotGrob(p_aligned_inlay)
+  invisible(dev.off())
 
-p_reads_aligned <- ggplot(df_plot_aligned, aes(x = n_reads_aligned)) +
-  geom_histogram(bins = 800, fill = "darkred", alpha = 0.7) +
-  theme_minimal() +
-  labs(x = "Number of reads aligned to pseudo-reference",
-       y = "Frequency") +
-  scale_x_continuous(
-    labels = label_number(scale = 1e-3, suffix = "k"),
-    breaks = pretty(c(0, aligned_max), n = 10)
-  ) +
-  scale_y_continuous(breaks = pretty(c(0, aligned_hist_y), n = 6)) +
-  annotation_custom(
-    grob = inlay_grob,
-    xmin = aligned_max * 0.65,
-    xmax = aligned_max * 1.0,
-    ymin = aligned_hist_y * 0.6,
-    ymax = aligned_hist_y * 1.05
-  )
+  p_reads_aligned <- ggplot(df_plot_aligned, aes(x = n_reads_aligned)) +
+    geom_histogram(bins = 800, fill = "darkred", alpha = 0.7) +
+    theme_minimal() +
+    labs(x = "Number of reads aligned to pseudo-reference",
+         y = "Frequency") +
+    scale_x_continuous(
+      labels = label_number(scale = 1e-3, suffix = "k"),
+      breaks = pretty(c(0, aligned_max), n = 10)
+    ) +
+    scale_y_continuous(breaks = pretty(c(0, aligned_hist_y), n = 6)) +
+    annotation_custom(
+      grob = inlay_grob,
+      xmin = aligned_max * 0.65,
+      xmax = aligned_max * 1.0,
+      ymin = aligned_hist_y * 0.6,
+      ymax = aligned_hist_y * 1.05
+    )
 
-ggsave(file.path(output_dir, "mge_reads_aligned_histogram_inlay.png"),
-       plot = p_reads_aligned, width = 10, height = 6, dpi = 300)
+  ggsave(file.path(output_dir, "mge_reads_aligned_histogram_inlay.png"),
+         plot = p_reads_aligned, width = 10, height = 6, dpi = 300)
+} else {
+  cat("Insufficient n_reads_aligned variation (need >=2 distinct values) — skipping aligned reads histogram\n")
+}
 
 # Plot 8: Success rate by read count bin
 p_success_bins <- ggplot(read_bins, aes(x = read_bin, y = success_rate * 100)) +
@@ -1118,26 +1131,30 @@ ggsave(file.path(output_dir, "barcoding_success_rate_by_read_bin.png"),
 # ============================================================================
 
 # Validation plot 1: pident histogram
-pident_y_max <- max(30, ceiling(max(
-  hist(df_selected$pident, breaks = 30, plot = FALSE)$counts
-) / 50) * 50)
+if (nrow(df_selected) > 0) {
+  pident_y_max <- max(30, ceiling(max(
+    hist(df_selected$pident, breaks = 30, plot = FALSE)$counts
+  ) / 50) * 50)
 
-p_pident <- ggplot(df_selected, aes(x = pident)) +
-  geom_histogram(bins = 30, fill = "steelblue", color = "black", alpha = 0.7) +
-  geom_vline(xintercept = 80, linetype = "dashed", color = "red",    linewidth = 1) +
-  geom_vline(xintercept = 90, linetype = "dashed", color = "orange", linewidth = 1) +
-  geom_vline(xintercept = 97, linetype = "dashed", color = "green",  linewidth = 1) +
-  labs(x = "Percent identity (pident)", y = "Number of samples") +
-  theme_minimal() +
-  theme(axis.text.x  = element_text(size = 15),
-        axis.text.y  = element_text(size = 15),
-        axis.title.x = element_text(size = 15),
-        axis.title.y = element_text(size = 15)) +
-  scale_y_continuous(breaks = pretty(c(0, pident_y_max), n = 8)) +
-  coord_cartesian(ylim = c(0, pident_y_max * 1.05))
+  p_pident <- ggplot(df_selected, aes(x = pident)) +
+    geom_histogram(bins = 30, fill = "steelblue", color = "black", alpha = 0.7) +
+    geom_vline(xintercept = 80, linetype = "dashed", color = "red",    linewidth = 1) +
+    geom_vline(xintercept = 90, linetype = "dashed", color = "orange", linewidth = 1) +
+    geom_vline(xintercept = 97, linetype = "dashed", color = "green",  linewidth = 1) +
+    labs(x = "Percent identity (pident)", y = "Number of samples") +
+    theme_minimal() +
+    theme(axis.text.x  = element_text(size = 15),
+          axis.text.y  = element_text(size = 15),
+          axis.title.x = element_text(size = 15),
+          axis.title.y = element_text(size = 15)) +
+    scale_y_continuous(breaks = pretty(c(0, pident_y_max), n = 8)) +
+    coord_cartesian(ylim = c(0, pident_y_max * 1.05))
 
-ggsave(file.path(output_dir, "validation_pident_histogram.png"),
-       plot = p_pident, width = 6, height = 6, dpi = 300)
+  ggsave(file.path(output_dir, "validation_pident_histogram.png"),
+         plot = p_pident, width = 6, height = 6, dpi = 300)
+} else {
+  cat("No selected barcodes — skipping pident histogram\n")
+}
 
 # Validation plot 2-1: barcode rank stacked by mode type
 rank_y_max <- max(rank_totals$total, na.rm = TRUE)
@@ -1190,43 +1207,47 @@ ggsave(file.path(output_dir, "validation_selected_by_mode.png"),
        plot = p_selected_mode, width = 6, height = 6, dpi = 300)
 
 # Validation plot 8: success rate by taxonomic order
-overall_success_rate <- mean(sample_success$success)
+if (nrow(order_success) > 0) {
+  overall_success_rate <- mean(sample_success$success)
 
-n_orders     <- nrow(order_success)
-order_height <- max(6, n_orders * 0.35)
+  n_orders     <- nrow(order_success)
+  order_height <- max(6, n_orders * 0.35)
 
-p_order_success <- ggplot(order_success, aes(x = order, y = success_rate)) +
-  geom_col(aes(fill = success_rate), show.legend = FALSE) +
-  geom_hline(yintercept = overall_success_rate,
-             linetype = "dashed", color = "black", linewidth = 0.5) +
-  geom_text(aes(label = sprintf("%.1f%%", 100 * success_rate)),
-            hjust = -0.1, size = 4) +
-  geom_text(aes(label = sprintf("n=%d", n_specimens)),
-            hjust = 1.1, size = 4, color = "white") +
-  coord_flip() +
-  scale_fill_gradientn(
-    colours = c("#e74c3c", "#f39c12", "#2ecc71"),
-    values  = if (min(order_success$success_rate) == max(order_success$success_rate))
-                c(0, 0.5, 1)
-              else
-                scales::rescale(c(min(order_success$success_rate),
-                                  overall_success_rate,
-                                  max(order_success$success_rate)))
-  ) +
-  scale_y_continuous(
-    labels = scales::percent,
-    limits = c(0, 1.15),
-    breaks = seq(0, 1, by = 0.25)
-  ) +
-  labs(x = "Taxonomic order",
-       y = "Success rate (%)") +
-  theme_minimal() +
-  theme(axis.text.x  = element_text(size = 13),
-        axis.text.y  = element_text(size = 13),
-        axis.title.x = element_text(size = 13),
-        axis.title.y = element_text(size = 13))
+  p_order_success <- ggplot(order_success, aes(x = order, y = success_rate)) +
+    geom_col(aes(fill = success_rate), show.legend = FALSE) +
+    geom_hline(yintercept = overall_success_rate,
+               linetype = "dashed", color = "black", linewidth = 0.5) +
+    geom_text(aes(label = sprintf("%.1f%%", 100 * success_rate)),
+              hjust = -0.1, size = 4) +
+    geom_text(aes(label = sprintf("n=%d", n_specimens)),
+              hjust = 1.1, size = 4, color = "white") +
+    coord_flip() +
+    scale_fill_gradientn(
+      colours = c("#e74c3c", "#f39c12", "#2ecc71"),
+      values  = if (min(order_success$success_rate) == max(order_success$success_rate))
+                  c(0, 0.5, 1)
+                else
+                  scales::rescale(c(min(order_success$success_rate),
+                                    overall_success_rate,
+                                    max(order_success$success_rate)))
+    ) +
+    scale_y_continuous(
+      labels = scales::percent,
+      limits = c(0, 1.15),
+      breaks = seq(0, 1, by = 0.25)
+    ) +
+    labs(x = "Taxonomic order",
+         y = "Success rate (%)") +
+    theme_minimal() +
+    theme(axis.text.x  = element_text(size = 13),
+          axis.text.y  = element_text(size = 13),
+          axis.title.x = element_text(size = 13),
+          axis.title.y = element_text(size = 13))
 
-ggsave(file.path(output_dir, "validation_success_rate_by_order.png"),
-       plot = p_order_success, width = 14, height = order_height, dpi = 300)
+  ggsave(file.path(output_dir, "validation_success_rate_by_order.png"),
+         plot = p_order_success, width = 14, height = order_height, dpi = 300)
+} else {
+  cat("No order-level success data — skipping success rate by order plot\n")
+}
 
 cat("Written: static PNG fallbacks\n")
