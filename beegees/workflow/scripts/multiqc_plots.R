@@ -649,7 +649,7 @@ sample_success <- df_metrics %>%
   mutate(across(where(is.character), trimws)) %>%
   group_by(ID) %>%
   summarise(
-    success = as.integer(any(selected == "YES")),
+    success = as.integer(any(selected == "YES", na.rm = TRUE)),
     .groups = "drop"
   )
 
@@ -942,8 +942,8 @@ order_success <- sample_success_order %>%
   dplyr::group_by(order) %>%
   dplyr::summarise(
     n_specimens  = n(),
-    n_success    = sum(success),
-    success_rate = mean(success),
+    n_success    = sum(success, na.rm = TRUE),
+    success_rate = mean(success, na.rm = TRUE),
     .groups      = "drop"
   ) %>%
   dplyr::filter(n_specimens >= 1) %>%
@@ -1208,7 +1208,7 @@ ggsave(file.path(output_dir, "validation_selected_by_mode.png"),
 
 # Validation plot 8: success rate by taxonomic order
 if (nrow(order_success) > 0) {
-  overall_success_rate <- mean(sample_success$success)
+  overall_success_rate <- mean(sample_success$success, na.rm = TRUE)
 
   n_orders     <- nrow(order_success)
   order_height <- max(6, n_orders * 0.35)
