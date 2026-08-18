@@ -32,7 +32,10 @@ BeeGees is a Snakemake workflow for recovering high-quality protein-coding DNA b
 - [Validation process](#validation-process)
   - [Structural validation](#structural-validation)
   - [Taxonomic validation](#taxonomic-validation)
-  - [Final metric integration](#final-metric-integration)
+- [Major outputs](#major-outputs)
+  - [Validated barcode FASTA](#validated-barcode-fasta)
+  - [Final metrics CSV](#final-metrics-csv)
+  - [Diagnostic plots](#diagnostic-plots)
   - [MultiQC report](#multiqc-report)
 - [Screening negative controls](#screening-negative-controls)
 - [Citations and contributions](#citations-and-contributions)
@@ -509,20 +512,55 @@ Taxonomic validation runs in two steps, via `tv_local_blast.py` and `tv_blast2ta
 4. Select the best sequence per process ID from those with taxonomy matches, prioritising in order: lowest matched rank (species > genus > family), then fewest gaps, fewest mismatches, highest percent identity, lowest e-value, highest alignment length, highest MGE `s` value, highest MGE `r` value, and finally sequences containing `fcleaner` in the seq ID (preferring cleaned consensus sequences).
 5. Write the taxonomic validation CSV.
 
-## Final metric integration ##
-`val_csv_merger.py` merges validation outputs with preprocessing and recovery statistics into `{run_name}_final_metrics.csv`, consolidating:
+---
+
+# Major outputs #
+
+## Validated barcode FASTA ##
+The primary deliverable is a multi-FASTA of all barcodes that passed both structural and taxonomic validation:
+
+```
+{output_dir}/{run_name}_validated_barcodes.fasta
+```
+
+One sequence per sample (the best-ranking barcode per process ID), with a header encoding the sample ID, MGE parameters, validation rank, and taxonomic match. Only produced when both validation steps complete successfully.
+
+## Final metrics CSV ##
+`val_csv_merger.py` merges validation outputs with preprocessing and recovery statistics into a single per-barcode-candidate CSV:
+
+```
+{output_dir}/{run_name}_final_metrics.csv
+```
+
+Consolidates:
 - Read QC metrics (fastp, plus TrimGalore for PE)
 - Reference retrieval results (Gene Fetch)
 - Barcode recovery statistics (MitoGeneExtractor, fasta_cleaner)
 - Structural validation metrics
 - Taxonomic validation results
 
+## Diagnostic plots ##
+A directory of diagnostic and results PNG plots is written alongside the MultiQC report:
+
+```
+{output_dir}/05_barcoding_outcome/plots/
+```
+
+Plots cover read count distributions, alignment rates, barcode rank and mode-type breakdown, taxonomic success rates by order and phylum, percent identity histograms, and barcoding outcome summaries. These PNGs are also embedded in the MultiQC report.
+
 ## MultiQC report ##
-Every run produces a self-contained interactive HTML report at `05_barcoding_outcome/multiqc_report/multiqc_report.html`, copied to `{output_dir}/multiqc_report.html`, integrating:
+Every run produces a self-contained interactive HTML report at:
+
+```
+{output_dir}/05_barcoding_outcome/multiqc_report/multiqc_report.html
+```
+
+A convenience copy is placed directly at `{output_dir}/multiqc_report.html`. The report integrates:
 - Read QC summary (fastp)
 - Barcode recovery rates (MitoGeneExtractor)
 - Structural and taxonomic validation outcomes
 - Per-sample barcoding success (PASS/PARTIAL/FAIL)
+
 [View an example MultiQC report (10 samples)](docs/examples/multiqc_report.html)
 
 
