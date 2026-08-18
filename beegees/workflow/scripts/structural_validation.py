@@ -1049,15 +1049,17 @@ def write_all_passing_sequences(all_results, output_csv_path):
                         logging.debug(f"Including passing sequence {result['seq_id']} from {result['file']} "
                                     f"(process_id: {result['process_id']}, base_count: {result['barcode_base_count']})")
         
-        # Write all passing sequences to output file without line breaks
+        # Always write the output file so Snakemake's dependency chain is satisfied.
+        # An empty FASTA (0 sequences) means all barcodes failed structural validation;
+        # downstream rules guard against this and propagate gracefully.
+        with open(output_file, 'w') as f:
+            for record in passing_barcode_records:
+                f.write(f">{record.id}\n{str(record.seq)}\n")
+
         if passing_barcode_records:
-            with open(output_file, 'w') as f:
-                for record in passing_barcode_records:
-                    f.write(f">{record.id}\n{str(record.seq)}\n")
-            
             logging.info(f"Wrote {len(passing_barcode_records)} passing sequences to {output_file}")
         else:
-            logging.warning("No sequences passed quality criteria for output")
+            logging.warning(f"No sequences passed quality criteria — wrote empty {output_file}")
         
         return output_file, len(passing_barcode_records)
         

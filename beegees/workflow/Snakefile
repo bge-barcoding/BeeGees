@@ -2651,14 +2651,21 @@ rule local_blast:
         echo "Threads: {threads}" >> {log}
         echo "Verbose: {params.verbosity}" >> {log}
 
-        python {params.script} \\
-            --input {input.barcode_fasta} \\
-            --database {params.database} \\
-            --output {params.out_dir} \\
-            --output-csv {output.csv} \\
-            --processes {threads} \\
-            {params.verbosity} \\
-            >> {log} 2>&1
+        # If no barcodes passed structural validation the FASTA is empty.
+        # BLAST cannot run on an empty query — write a header-only TSV and skip.
+        if [ ! -s "{input.barcode_fasta}" ]; then
+            echo "No passing barcodes from structural validation — skipping BLAST, writing empty output" >> {log}
+            printf 'qseqid\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tstitle\n' > {output.csv}
+        else
+            python {params.script} \\
+                --input {input.barcode_fasta} \\
+                --database {params.database} \\
+                --output {params.out_dir} \\
+                --output-csv {output.csv} \\
+                --processes {threads} \\
+                {params.verbosity} \\
+                >> {log} 2>&1
+        fi
 
         echo "Taxonomic validation completed: $(date)" >> {log}
         """
@@ -2697,21 +2704,31 @@ rule blast2taxonomy:
         echo "Output CSV: {output.taxonomy_csv}" >> {log}
         echo "Output FASTA: {output.barcode_fasta}" >> {log}
 
-        python {params.script} \\
-            --taxval-rank {params.taxval_rank} \\
-            --input-blast-csv {input.blast_csv} \\
-            --input-taxonomy-file {input.blast_taxonomy} \\
-            --input-exp-taxonomy {input.expected_taxonomy} \\
-            --input-fasta {input.input_fasta} \\
-            --output-csv {output.taxonomy_csv} \\
-            --output-fasta {output.barcode_fasta} \\
-            --min-pident {params.min_pident} \\
-            --min-length {params.min_length} \\
-            --log {log} \\
-            >> {log} 2>&1
+        # If BLAST produced no hits (header-only CSV), skip taxonomy validation
+        # and write empty outputs so the pipeline completes with all samples as FAIL.
+        blast_lines=$(wc -l < "{input.blast_csv}")
+        if [ "$blast_lines" -le 1 ]; then
+            echo "No BLAST results — skipping taxonomy validation, writing empty outputs" >> {log}
+            printf 'seq_id,Process_ID,taxval_rank,expected_taxonomy,expected_taxonomy_rank,obs_taxonomy,match_taxonomy,matched_rank,top_matching_hit,pident,length,mismatch,gaps,evalue,selected\n' > {output.taxonomy_csv}
+            touch {output.barcode_fasta}
+            touch {output.final_fasta}
+        else
+            python {params.script} \\
+                --taxval-rank {params.taxval_rank} \\
+                --input-blast-csv {input.blast_csv} \\
+                --input-taxonomy-file {input.blast_taxonomy} \\
+                --input-exp-taxonomy {input.expected_taxonomy} \\
+                --input-fasta {input.input_fasta} \\
+                --output-csv {output.taxonomy_csv} \\
+                --output-fasta {output.barcode_fasta} \\
+                --min-pident {params.min_pident} \\
+                --min-length {params.min_length} \\
+                --log {log} \\
+                >> {log} 2>&1
 
-        # Copy and rename the barcode_fasta to another directory
-        cp {output.barcode_fasta} {output.final_fasta}
+            # Copy and rename the barcode_fasta to another directory
+            cp {output.barcode_fasta} {output.final_fasta}
+        fi
 
         echo "Taxonomic validation completed: $(date)" >> {log}
         """
