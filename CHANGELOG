@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- Taxonomic validation: `tv_local_blast.py` now batches queries into chunks of 50
+  sequences per `blastn` invocation instead of running one process per sequence,
+  so a large reference database is loaded once per chunk rather than once per
+  barcode. Per-sequence TSV outputs, the summary CSV layout and resume behaviour
+  are unchanged. A failed chunk retries its sequences individually, and
+  sequences that still fail now cause a non-zero exit (with no summary CSV)
+  rather than being reported as no-match; `--allow-partial-failures` restores the
+  previous leniency.
+- Fixed the summary CSV dropping all hits for sequences whose FASTA header
+  carries a description, where BLAST's `qseqid` (first token only) did not match
+  the sanitized full header used as the CSV key.
+- Removed the unused `blast_options` entry from the Snakefile's
+  `taxonomic_validation` fallback, and corrected the documented BLAST hit limit
+  (100, not 500).
+
 ## v3.0.4 (2026-08-13)
 
 Initial PyPI release.

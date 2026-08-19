@@ -315,10 +315,15 @@ structural_validation_params = config.get("structural_validation", {
 })
 
 # Taxonomic validation configuration
+# NOTE: the fallback dict below is unreachable in practice -
+# validate_taxonomic_validation_config() runs earlier and exits when the
+# taxonomic_validation key is absent or blast_db is empty. It is kept only so
+# this module is importable in isolation. BLAST search options are not
+# configurable here: they are the defaults in scripts/tv_local_blast.py, and the
+# rule does not pass --blast-opts.
 taxonomic_validation_params = config.get("taxonomic_validation", {
     "blast_db": "",
     "verbose": True,
-    "blast_options": "-evalue 1e-5 -max_target_seqs 50 -num_threads 4",
     "db_taxonomy": "",
     "expected_taxonomy": "",
     "taxval_rank": "family",

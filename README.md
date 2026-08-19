@@ -136,7 +136,7 @@ bash run_local.sh
    - Cleaned consensus generation and metrics aggregation ([`05_consensus_generator.py`](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/05_consensus_generator.py))
 6. **Barcode validation and selection** (see [Validation process](#validation-process)):
    - **Structural validation** - HMM-based barcode extraction, reading frame analysis, stop codon detection and quality ranking ([`structural_validation.py`](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/structural_validation.py))
-   - **Local BLASTn search** - parallel searches of structurally validated barcodes against a local reference database ([`tv_local_blast.py`](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/tv_local_blast.py))
+   - **Local BLASTn search** - chunked, parallel searches of structurally validated barcodes against a local reference database ([`tv_local_blast.py`](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/tv_local_blast.py))
    - **Taxonomic validation** - hierarchical matching of BLAST results against expected taxonomy, selecting the best sequence per sample ([`tv_blast2taxonomy.py`](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/tv_blast2taxonomy.py))
 7. **Statistics compilation** - QC, recovery, cleaning, filtering and validation metrics aggregated into CSV reports ([`compile_barcoding_stats.py`](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/compile_barcoding_stats.py)).
 8. **Final integration** - all pipeline metrics merged into a unified output CSV ([`val_csv_merger.py`](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/val_csv_merger.py)).
@@ -503,7 +503,7 @@ Structural validation (via `structural_validation.py`) assesses every barcode co
 ## Taxonomic validation ##
 Taxonomic validation runs in two steps, via `tv_local_blast.py` and `tv_blast2taxonomy.py`.
 
-**1. Local BLASTn search.** Parallel BLASTn searches against a local database, either built from a multi-FASTA with `makeblastdb` or supplied pre-built. The e-value threshold is hardcoded to 1e-5. Per-sequence TSV outputs (outfmt 6) hold the top 500 hits ordered by descending percent identity; the top 100 are carried into the summary CSV.
+**1. Local BLASTn search.** BLASTn searches against a local database, either built from a multi-FASTA with `makeblastdb` or supplied pre-built. The e-value threshold is hardcoded to 1e-5 and `max_target_seqs` to 100. Queries are batched into chunks of 50 sequences per `blastn` invocation, with up to `threads` chunks running concurrently, so the database is loaded once per chunk rather than once per sequence. Results are demultiplexed back into one TSV per sequence (outfmt 6), each holding up to 100 hits ordered by descending percent identity, and all 100 are carried into the summary CSV. Sequences whose TSV already exists are skipped, so an interrupted run resumes without repeating finished work.
  
 **2. Taxonomic assignment validation.** BLASTn results are checked against expected taxonomy using hierarchical matching and quality-based filtering:
 1. Parse the local BLASTn summary CSV, per-sample expected lineages, database taxonomy mappings, and structurally validated sequences.

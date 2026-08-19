@@ -152,7 +152,7 @@ rules:
     partition: himem
   taxonomic_validation:                          # tv_local_blast.py: parallel BLASTn searches against local reference database
     mem_mb: 32768
-    threads: 16                                  # Minimum = 4 (4 threads per parallelised BLASTn process)
+    threads: 16                                  # Max concurrent single-threaded BLASTn chunks (50 sequences per chunk)
     partition: himem
   blast2taxonomy:                                # tv_blast2taxonomy.py: hierarchical taxonomic matching and best-barcode selection
     mem_mb: 16384
