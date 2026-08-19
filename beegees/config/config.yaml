@@ -147,8 +147,8 @@ rules:
     mem_mb: 8192
     threads: 1
   structural_validation:                         # structural_validation.py: HMM-based extraction, reading frame and stop-codon checks
-    mem_mb: 4096                                 # Scales with sequence count (~110 MB per 1000 samples), not with read depth
-    threads: 8                                   # CPUs given to each nhmmer call (--cpu); nhmmer runs once per sequence
+    mem_mb: 4096
+    threads: 4                                   # CPUs given to each nhmmer call (--cpu). Processing is sub-linear, so >4 threads has dimishing returns.
     partition: medium
   taxonomic_validation:                          # tv_local_blast.py: parallel BLASTn searches against local reference database
     mem_mb: 32768
