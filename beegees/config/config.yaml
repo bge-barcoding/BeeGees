@@ -97,72 +97,104 @@ taxonomic_validation:
 # taxdump_dir: "/path/to/writable/ncbi_taxdump"
 
 
-## Resource allocation for each rule. Memory shown in Mb (mem_mb), e.g. 2048 = 2G memory. Rules have dynamic memory scaling upon retry (mem_mb * retry #).
+## Resource allocation for each rule
+#
+# mem_mb is in MB (2048 = 2 GB) and is multiplied by the attempt number on retry,
+# so a rule that dies at 4096 is resubmitted with 8192, then 12288. That retry
+# scaling is the flexibility mechanism: size the base value for a typical run and
+# let retries absorb the outliers, rather than padding every rule for the worst
+# case you can imagine.
+#
+# PER-SAMPLE rules run once per sample (MitoGeneExtractor runs once per sample per
+# r/s combination). Their cost is fixed no matter how many samples the run has, so
+# size them for your deepest single sample - a 1-sample and a 500-sample run need
+# the same values.
+#
+# AGGREGATE rules run once for the whole run, so their memory does grow with sample
+# count. The values below carry headroom to ~500 samples; the per-rule comments say
+# what actually drives each one.
+#
+# threads is only set above 1 where the underlying tool consumes it. Snakemake
+# reserves the CPUs either way, so an inflated value buys nothing and makes the job
+# queue longer - which matters most on a busy cluster.
+#
+# partition is only read for gene_fetch, MitoGeneExtractor, structural_validation
+# and taxonomic_validation. Every other rule takes the profile default (medium).
+# Do not delete those four keys: the Snakefile indexes them directly and will fail
+# with a KeyError.
+#
+# To right-size for your own data: sacct -j <jobid> --format=JobID,Elapsed,TotalCPU,MaxRSS,ReqMem
 rules:
-  gene_fetch:                                    # Gene Fetch: reference retrieval from NCBI GenBank
-    mem_mb: 8192
-    threads: 4
-    partition: long
+
+  # ===== PER-SAMPLE: cost per job is independent of how many samples are in the run =====
+
+  gene_fetch:                                    # gene-fetch: reference retrieval from NCBI GenBank
+    mem_mb: 4096                                 # One job for the whole run, but streams records; holds little in memory
+    threads: 1                                   # Not passed to gene-fetch - it is NCBI API-bound, not CPU-bound
+    partition: long                              # Runtime, not memory, scales with sample count (NCBI rate limits)
   fastp_qc:                                      # fastp: adapter trimming, QC, merging/deduplication (PE merge and concat modes)
-    mem_mb: 16384
-    threads: 4
+    mem_mb: 8192                                 # Per sample; tracks read depth
+    threads: 4                                   # fastp --thread; gains flatten past ~8 even on deep samples
   clean_headers_merge:                           # Clean fastq headers for MitoGeneExtractor compatibility (merge mode)
-    mem_mb: 8192
-    threads: 1
+    mem_mb: 4096                                 # Per sample; rewrites the fastq line by line
+    threads: 1                                   # Rule does not use {threads}
   fastq_concat:                                  # Concatenation of fastp QC'd R1+R2 fastq files (concat mode)
-    mem_mb: 8192
-    threads: 1
+    mem_mb: 2048                                 # Per sample; plain cat, nothing buffered
+    threads: 1                                   # Rule does not use {threads}
   quality_trim:                                  # Trim Galore: secondary quality trimming of concatenated reads (concat mode)
-    mem_mb: 8192
-    threads: 4
+    mem_mb: 8192                                 # Per sample; tracks read depth
+    threads: 4                                   # trim_galore --cores. Note it spawns ~3-4x this many processes (cutadapt + pigz), so 4 already occupies ~15 CPUs
   downsample:                                    # reformat.sh: optional read downsampling (concat/merge/SE modes)
-    mem_mb: 8192
-    threads: 4
-  MitoGeneExtractor:                             # MitoGeneExtractor: protein-guided barcode extraction (concat/merge/SE modes); single-threaded (Exonerate)
-    mem_mb: 32768
-    threads: 1
-    partition: himem
-  rename_and_combine_cons:                       # Standardise and combine MGE consensus FASTA headers across parameter combinations
-    mem_mb: 8192
-    threads: 4
+    mem_mb: 8192                                 # Per sample. BBTools is Java and no -Xmx is set, so the JVM sizes its heap from visible node RAM and can overshoot this request
+    threads: 1                                   # Not passed to reformat.sh
+  MitoGeneExtractor:                             # MitoGeneExtractor: protein-guided barcode extraction (concat/merge/SE modes)
+    mem_mb: 32768                                # Per sample per r/s combination; scales with read depth. The pipeline's dominant cost
+    threads: 1                                   # Exonerate is single-threaded; the rule only echoes {threads} into its log
+    partition: himem                             # Inherits runtime=720 (12 h) from the profile - raise it there if deep samples hit the wall clock
+
+  # ===== AGGREGATE: one job for the whole run, so memory grows with sample count =====
+
+  rename_and_combine_cons:                       # rename_headers.py: standardise and combine MGE consensus headers across parameter combinations
+    mem_mb: 4096                                 # Process pool over files, one at a time per worker: peak is threads x one consensus file
+    threads: 4                                   # rename_headers.py --threads
   gzip_merged_clean:                             # Gzip *_merged_clean.fastq files to reclaim disk space
-    mem_mb: 8192
-    threads: 4
+    mem_mb: 2048                                 # gzip streams; memory is flat regardless of run size
+    threads: 1                                   # A serial gzip loop in a run: block - extra CPUs are never used. Runtime grows with sample count
   human_cox1_filter:                             # 01_human_cox1_filter.py: remove human COX1 contamination
-    mem_mb: 16384
+    mem_mb: 8192                                 # Process pool over per-sample alignments: peak is threads x largest alignment, so it tracks read depth, NOT sample count
     threads: 4
   at_content_filter:                             # 02_at_content_filter.py: remove reads with aberrant AT content
-    mem_mb: 16384
+    mem_mb: 8192                                 # As above: threads x largest per-sample alignment
     threads: 4
   statistical_outlier_filter:                    # 03_statistical_outlier_filter.py: remove reads statistically dissimilar to the consensus
-    mem_mb: 16384
+    mem_mb: 8192                                 # As above, plus per-alignment numpy distance arrays - the heaviest of the three filters
     threads: 4
   reference_filter:                              # 04_reference_filter.py: optional reference-based sequence retention or contaminant removal
-    mem_mb: 4096
-    threads: 1
+    mem_mb: 4096                                 # Skipped entirely when fasta_cleaner.reference_dir is null
+    threads: 4                                   # Has the same process pool as the other filters; threads: 1 left it running serially for no reason
   consensus_generation:                          # 05_consensus_generator.py: generate cleaned consensus sequences and aggregate metrics
-    mem_mb: 8192
+    mem_mb: 8192                                 # Process pool over per-sample alignments, as with the filters above
     threads: 4
-  extract_stats_to_csv:                          # mge_stats.py: extract per-sample MGE alignment statistics to CSV
-    mem_mb: 8192
-    threads: 1
+  extract_stats_to_csv:                          # compile_barcoding_stats.py: extract per-sample MGE alignment statistics to CSV
+    mem_mb: 4096                                 # Builds one table across all samples, so grows with sample count
+    threads: 1                                   # No threading in the script
   structural_validation:                         # structural_validation.py: HMM-based extraction, reading frame and stop-codon checks
-    mem_mb: 4096
-    threads: 4                                   # CPUs given to each nhmmer call (--cpu). Processing is sub-linear, so >4 threads has dimishing returns.
+    mem_mb: 4096                                 # ~110 MB per 1000 samples: each sample is validated across 6 r/s combos x 4 input FASTAs
+    threads: 4                                   # CPUs given to each nhmmer call (--cpu). Processing is sub-linear, so >4 threads has diminishing returns
     partition: medium
-  taxonomic_validation:                          # tv_local_blast.py: parallel BLASTn searches against local reference database
-    mem_mb: 32768
-    threads: 16                                  # Max concurrent single-threaded BLASTn chunks (50 sequences per chunk)
-    partition: himem
+  taxonomic_validation:                          # tv_local_blast.py: chunked BLASTn searches against local reference database
+    mem_mb: 8192                                 # ~250 MB per concurrent chunk (database pages are mmap'd and shared), plus the summary table over all barcodes
+    threads: 8                                   # Max concurrent single-threaded BLASTn chunks (50 sequences per chunk). Useful up to ceil(barcodes / 50) - raise towards 16 above ~400 barcodes
+    partition: medium
   blast2taxonomy:                                # tv_blast2taxonomy.py: hierarchical taxonomic matching and best-barcode selection
-    mem_mb: 16384
-    threads: 4
-  download_taxdump:                              # Download NCBI taxdump for blast2taxonomy
-    mem_mb: 4096
-    threads: 1
-  multiqc_plots:                                 # Generate per-sample summary plots from pipeline metrics
-    mem_mb: 8192
-    threads: 2
+    mem_mb: 4096                                 # Holds every hit for every barcode: ~44 KB per barcode, so ~340 MB at 500 samples
+    threads: 1                                   # No threading in the script
+  download_taxdump:                              # Download and extract the NCBI taxdump for blast2taxonomy
+    mem_mb: 2048                                 # Streams the download to disk; independent of run size
+    threads: 1                                   # Rule does not use {threads}
+  multiqc_plots:                                 # multiqc_plots.R: per-sample summary plots from pipeline metrics
+    mem_mb: 4096                                 # R data frames spanning all samples, so grows with sample count
+    threads: 1                                   # Not used by the R script
   multiqc:                                       # MultiQC: aggregate all QC reports into a single interactive HTML report
-    mem_mb: 8192
-    threads: 1
+    mem_mb: 8192                                 # Parses every report in the run - the largest aggregate consumer at high sample counts
+    threads: 1                                   # MultiQC is single-threaded
