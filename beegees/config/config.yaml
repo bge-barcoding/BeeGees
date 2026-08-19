@@ -146,10 +146,10 @@ rules:
   extract_stats_to_csv:                          # mge_stats.py: extract per-sample MGE alignment statistics to CSV
     mem_mb: 8192
     threads: 1
-  structural_validation:                         # structural_validation.py: HMM-based extraction, reading frame and stop-codon checks; nhmmer is single-threaded
-    mem_mb: 32768
-    threads: 1
-    partition: himem
+  structural_validation:                         # structural_validation.py: HMM-based extraction, reading frame and stop-codon checks
+    mem_mb: 4096                                 # Scales with sequence count (~110 MB per 1000 samples), not with read depth
+    threads: 8                                   # CPUs given to each nhmmer call (--cpu); nhmmer runs once per sequence
+    partition: medium
   taxonomic_validation:                          # tv_local_blast.py: parallel BLASTn searches against local reference database
     mem_mb: 32768
     threads: 16                                  # Max concurrent single-threaded BLASTn chunks (50 sequences per chunk)

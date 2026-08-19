@@ -2613,6 +2613,7 @@ rule structural_validation:
             --input {input.fastas} \
             --hmm {input.hmm_file} \
             --code {params.genetic_code} \
+            --threads {threads} \
             --log-file {log} \
             --disable-selection \
             {params.verbosity}

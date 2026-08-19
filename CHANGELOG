@@ -16,6 +16,17 @@
 - Removed the unused `blast_options` entry from the Snakefile's
   `taxonomic_validation` fallback, and corrected the documented BLAST hit limit
   (100, not 500).
+- Structural validation: fixed a temp-file leak in `structural_validation.py`,
+  where the per-sequence nhmmer query and tabular files were created with
+  `delete=False` and never removed, leaving two files per sequence in `TMPDIR`
+  (48 per sample, since each sample is validated across 6 parameter
+  combinations and 4 input FASTAs).
+- Structural validation: added `--threads`, passed from the rule, setting
+  nhmmer's `--cpu` per invocation. Defaults to 1, so standalone behaviour is
+  unchanged.
+- Right-sized the `structural_validation` rule resources from 32 GB / 1 thread /
+  himem to 4 GB / 8 threads / medium. Peak memory scales with sequence count
+  rather than read depth, measured at roughly 110 MB per 1000 samples.
 
 ## v3.0.4 (2026-08-13)
 
