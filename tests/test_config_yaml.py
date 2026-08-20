@@ -3,6 +3,7 @@
 This test loads the bundled config.yaml with PyYAML and checks structure —
 it does not invoke Snakemake and requires no external tools.
 """
+import re
 from pathlib import Path
 
 import pytest
@@ -116,9 +117,45 @@ class TestConfigYamlStructure:
         for rule_name, rule_cfg in config["rules"].items():
             assert "mem_mb" in rule_cfg, f"Rule '{rule_name}' missing mem_mb"
 
-    def test_rules_have_threads(self, config):
+    def test_rules_threads_valid_when_present(self, config):
+        """threads is optional - it is only declared for rules whose command
+        actually consumes it. Where present it must be a positive int."""
         for rule_name, rule_cfg in config["rules"].items():
-            assert "threads" in rule_cfg, f"Rule '{rule_name}' missing threads"
+            if "threads" not in rule_cfg:
+                continue
+            threads = rule_cfg["threads"]
+            assert isinstance(threads, int) and threads >= 1, (
+                f"Rule '{rule_name}' has invalid threads: {threads!r}"
+            )
+
+    def test_snakefile_resource_reads_resolve(self, config):
+        """Every rule_resources["<rule>"]["<key>"] in the Snakefile must resolve.
+
+        Snakemake evaluates these at parse time, so a read with no matching config
+        entry is a KeyError that kills the whole workflow before any job runs -
+        including for rules the current run mode would never use.
+
+        The rule-name character class must accept uppercase: MitoGeneExtractor is
+        the one rule that has it, and a lowercase-only pattern silently skips it.
+        """
+        snakefile = (get_package_dir() / "workflow" / "Snakefile").read_text()
+        rules = config["rules"]
+        unresolved = []
+        for lineno, line in enumerate(snakefile.splitlines(), 1):
+            for rule, key in re.findall(
+                    r'rule_resources\["([A-Za-z_]+)"\]\["([a-z_]+)"\]', line):
+                if rule not in rules:
+                    unresolved.append(
+                        f"Snakefile:{lineno} rule_resources['{rule}']['{key}'] "
+                        f"- no '{rule}' entry in config rules:")
+                elif key not in rules[rule]:
+                    unresolved.append(
+                        f"Snakefile:{lineno} rule_resources['{rule}']['{key}'] "
+                        f"- '{key}' not set for '{rule}' in config")
+        assert not unresolved, (
+            "Unresolved resource reads (KeyError at DAG build):\n  "
+            + "\n  ".join(unresolved)
+        )
 
     # barcode_recovery parameters
     def test_barcode_recovery_n_is_numeric(self, config):
