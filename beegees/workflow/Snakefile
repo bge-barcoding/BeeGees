@@ -16,9 +16,8 @@ from pathlib import Path
 
 # Name of the MitoGeneExtractor executable provided on PATH by the BeeGees conda
 # environment (the bioconda 'mitogeneextractor' package). MGE is no longer
-# referenced via a user-supplied 'mge_path' in the config; it is resolved from
-# the active conda environment instead. If the bioconda package exposes the
-# command under a different name, update this single constant.
+# referenced via a user-supplied 'mge_path' in the config. If the bioconda 
+# package exposes the command under a different name, update this single constant.
 MGE_EXECUTABLE = "MitoGeneExtractor"
 
 
@@ -603,7 +602,6 @@ if run_gene_fetch:
             input_flag="--in" if config["gene_fetch"]["input_type"].lower() == "taxid" else "--in2"
         log:
             os.path.join(main_output_dir, "02_references/gene_fetch.log")
-        threads: rule_resources["gene_fetch"]["threads"]
         resources:
             mem_mb=lambda wildcards, attempt: rule_resources["gene_fetch"]["mem_mb"] * attempt,
             slurm_partition=rule_resources["gene_fetch"]["partition"]
@@ -742,7 +740,6 @@ if downsampling_enabled:
         log:
             out=os.path.join(preprocessing_dir_merge, "logs/downsample/{sample}.out"),
             err=os.path.join(preprocessing_dir_merge, "logs/downsample/{sample}.err")
-        threads: rule_resources["downsample"]["threads"]
         resources:
             mem_mb=lambda wildcards, attempt: rule_resources["downsample"]["mem_mb"] * attempt
         retries: 3
@@ -780,7 +777,6 @@ rule clean_headers_merge:
     log:
         out=temp(os.path.join(preprocessing_dir_merge, "logs/clean_headers/{sample}.out")),
         err=temp(os.path.join(preprocessing_dir_merge, "logs/clean_headers/{sample}.err"))
-    threads: rule_resources["clean_headers_merge"]["threads"]
     resources:
         mem_mb=lambda wildcards, attempt: rule_resources["clean_headers_merge"]["mem_mb"] * attempt
     retries: 3
@@ -937,7 +933,6 @@ rule fastq_concat:
         temp(os.path.join(preprocessing_dir_concat, "trimmed_data/{sample}/{sample}_concat.fastq"))
     log:
         out=os.path.join(preprocessing_dir_concat, "logs/concat/{sample}.out")
-    threads: rule_resources["fastq_concat"]["threads"]
     resources:
         mem_mb=lambda wildcards, attempt: rule_resources["fastq_concat"]["mem_mb"] * attempt
     retries: 3
@@ -1045,7 +1040,6 @@ if downsampling_enabled:
         log:
             out=os.path.join(preprocessing_dir_concat, "logs/downsample/{sample}.out"),
             err=os.path.join(preprocessing_dir_concat, "logs/downsample/{sample}.err")
-        threads: rule_resources["downsample"]["threads"]
         resources:
             mem_mb=lambda wildcards, attempt: rule_resources["downsample"]["mem_mb"] * attempt
         retries: 3
@@ -1278,7 +1272,6 @@ rule MitoGeneExtractor_merge:
         t=t,
         output_dir=barcode_recovery_dir_merge,
         vulgar_dir=lambda wildcards: os.path.join(barcode_recovery_dir_merge, f"logs/mge/{wildcards.sample}_r_{wildcards.r}_s_{wildcards.s}/")
-    threads: rule_resources["MitoGeneExtractor"]["threads"]
     resources:
         mem_mb=lambda wildcards, attempt: rule_resources["MitoGeneExtractor"]["mem_mb"] * attempt,
         slurm_partition=rule_resources["MitoGeneExtractor"]["partition"]
@@ -1320,7 +1313,6 @@ rule MitoGeneExtractor_merge:
         echo "Started: $(date)" >> {log.out}
         echo "Node: $(hostname)" >> {log.out}
         echo "Memory allocated: $(({resources.mem_mb} / 1024))GB" >> {log.out}
-        echo "Threads: {threads}" >> {log.out}
         echo "Mode: merge" >> {log.out}
         echo "Sample: {wildcards.sample}" >> {log.out}
         
@@ -1427,7 +1419,6 @@ rule MitoGeneExtractor_concat:
         t=t,
         output_dir=barcode_recovery_dir_concat,
         vulgar_dir=lambda wildcards: os.path.join(barcode_recovery_dir_concat, f"logs/mge/{wildcards.sample}_r_{wildcards.r}_s_{wildcards.s}/")
-    threads: rule_resources["MitoGeneExtractor"]["threads"]
     resources:
         mem_mb=lambda wildcards, attempt: rule_resources["MitoGeneExtractor"]["mem_mb"] * attempt,
         slurm_partition=rule_resources["MitoGeneExtractor"]["partition"]
@@ -1469,7 +1460,6 @@ rule MitoGeneExtractor_concat:
         echo "Started: $(date)" >> {log.out}
         echo "Node: $(hostname)" >> {log.out}
         echo "Memory allocated: $(({resources.mem_mb} / 1024))GB" >> {log.out}
-        echo "Threads: {threads}" >> {log.out}
         echo "Mode: concat" >> {log.out}
         echo "Sample: {wildcards.sample}" >> {log.out}
         
@@ -1654,7 +1644,6 @@ rule gzip_merged_clean:
         completion_flag=os.path.join(barcode_recovery_dir_merge, "logs/gzip_merged_clean_complete.txt")
     log:
         os.path.join(barcode_recovery_dir_merge, "logs/gzip_merged_clean.log")
-    threads: rule_resources["gzip_merged_clean"]["threads"]
     resources:
         mem_mb=lambda wildcards, attempt: rule_resources["gzip_merged_clean"]["mem_mb"] * attempt
     retries: 2
@@ -2693,7 +2682,6 @@ rule blast2taxonomy:
         min_length=taxonomic_validation_params.get("min_length", "100")
     log:
         os.path.join(main_output_dir, f"04_barcode_validation/logs/02_taxonomic_validation.log")
-    threads: rule_resources["blast2taxonomy"]["threads"]
     resources:
         mem_mb=lambda wildcards, attempt: rule_resources["blast2taxonomy"]["mem_mb"] * attempt
     retries: 3
@@ -2764,7 +2752,6 @@ rule extract_stats_to_csv_merge:
         script=os.path.join(workflow.basedir, "scripts/compile_barcoding_stats.py"),
         out_dir=os.path.join(barcode_recovery_dir_merge, "out/"),
         ref_seqs_arg=lambda wildcards, input: f"--ref_seqs {input.ref_seqs}" if run_gene_fetch else ""
-    threads: rule_resources["extract_stats_to_csv"]["threads"]
     resources:
         mem_mb=lambda wildcards, attempt: rule_resources["extract_stats_to_csv"]["mem_mb"] * attempt
     retries: 3
@@ -2797,7 +2784,6 @@ rule extract_stats_to_csv_concat:
         script=os.path.join(workflow.basedir, "scripts/compile_barcoding_stats.py"),
         out_dir=os.path.join(barcode_recovery_dir_concat, "out/"),
         ref_seqs_arg=lambda wildcards, input: f"--ref_seqs {input.ref_seqs}" if run_gene_fetch else ""
-    threads: rule_resources["extract_stats_to_csv"]["threads"]
     resources:
         mem_mb=lambda wildcards, attempt: rule_resources["extract_stats_to_csv"]["mem_mb"] * attempt
     retries: 3
@@ -2972,7 +2958,6 @@ rule download_taxdump:
         taxdump_dir = taxdump_dir
     log:
         os.path.join(taxdump_dir, "download_taxdump.log")
-    threads: rule_resources["download_taxdump"]["threads"]
     resources:
         mem_mb = rule_resources["download_taxdump"]["mem_mb"]
     retries: 2
@@ -3047,7 +3032,6 @@ rule multiqc_plots:
         run_mode    = run_mode
     log:
         os.path.join(main_output_dir, "05_barcoding_outcome/logs/multiqc_plots.log")
-    threads: rule_resources["multiqc_plots"]["threads"]
     resources:
         mem_mb = rule_resources["multiqc_plots"]["mem_mb"]
     retries: 2
@@ -3100,7 +3084,6 @@ rule multiqc:
         output_dir = os.path.join(main_output_dir, "05_barcoding_outcome/multiqc_report")
     log:
         os.path.join(main_output_dir, "05_barcoding_outcome/logs/multiqc.log")
-    threads: rule_resources["multiqc"]["threads"]
     resources:
         mem_mb = rule_resources["multiqc"]["mem_mb"]
     retries: 2
@@ -3795,7 +3778,6 @@ rule extract_stats_to_csv_se:
         script=os.path.join(workflow.basedir, "scripts/compile_barcoding_stats.py"),
         out_dir=os.path.join(barcode_recovery_dir_se, "out/"),
         ref_seqs_arg=lambda wildcards, input: f"--ref_seqs {input.ref_seqs}" if run_gene_fetch else ""
-    threads: rule_resources["extract_stats_to_csv"]["threads"]
     resources:
         mem_mb=lambda wildcards, attempt: rule_resources["extract_stats_to_csv"]["mem_mb"] * attempt
     retries: 3
