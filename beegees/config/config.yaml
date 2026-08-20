@@ -141,7 +141,7 @@ rules:
   rename_and_combine_cons:                       # rename_headers.py: standardise and combine MGE consensus headers across parameter combinations
     mem_mb: 4096
     threads: 4                                   # rename_headers.py --threads. >4 is likely to have dimishing speed returns
-  gzip_merged_clean:
+  gzip_merged_clean:                             # Gzip *_merged_clean.fastq files to reclaim disk space
     mem_mb: 2048                                 # Flat memory requirement regardless of sample number
   human_cox1_filter:                             # 01_human_cox1_filter.py: remove human COX1 contamination
     mem_mb: 8192                                 # Process pool over per-sample alignments: peak is [threads] x [largest alignment], so it tracks read depth, NOT sample count
