@@ -36,10 +36,10 @@ gene_fetch:
    genbank: true                                 # Download GenBank records for retrieved pseudo-reference sequences
 
 
-## Downsampling parameters
+## Downsampling parameters. Read downsampling occurs post-QC.
 downsampling:
   enabled: false                                 # Set to true to enable downsampling (default: false)
-  max_reads: 0                                   # Maximum number of read PAIRS to process
+  max_reads: 0                                   # Maximum number of read to process. 10000000 gives 10M SE reads, or 10M pairs (20M individual reads for PE). Set to 0 to disable.
 
 
 ## MitoGeneExtractor / barcode recovery parameters
