@@ -1,9 +1,10 @@
 # BeeGees - Barcode gene Extraction and Evaluation from Genome Skims #
 
 [![Snakemake](https://img.shields.io/badge/snakemake-9.9.0-brightgreen.svg?style=flat)](https://snakemake.readthedocs.io)
-[![Publication DOI](https://img.shields.io/badge/publication_DOI-10.1111%2F1755--0998.70170-blue.svg)](https://doi.org/10.1111/1755-0998.70170)
+[![Molecular Ecology Resources](https://img.shields.io/badge/publication_DOI-10.1111%2F1755--0998.70170-blue.svg)](https://doi.org/10.1111/1755-0998.70170)
 [![CI](https://github.com/bge-barcoding/BeeGees/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bge-barcoding/BeeGees/actions/workflows/ci.yml)
 [![PyPI version](https://badge.fury.io/py/beegees.svg?icon=si%3Apython)](https://badge.fury.io/py/beegees)
+[![install with bioconda](https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat)](http://bioconda.github.io/recipes/beegees/README.html)
 
 
 BeeGees is a Snakemake workflow for recovering high-quality protein-coding DNA barcodes from low-coverage NGS data at scale. Built around [MitoGeneExtractor](https://github.com/cmayer/MitoGeneExtractor) and tailored for genome skims of museum specimens, it takes raw reads through preprocessing, reference retrieval, barcode recovery, consensus cleaning, and structural and taxonomic validation, producing a validated barcode FASTA, a unified per-sample metrics CSV, and an interactive MultiQC report.

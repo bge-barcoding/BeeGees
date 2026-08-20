@@ -36,10 +36,10 @@ gene_fetch:
    genbank: true                                 # Download GenBank records for retrieved pseudo-reference sequences
 
 
-## Downsampling parameters
+## Downsampling parameters. Read downsampling occurs post-QC.
 downsampling:
   enabled: false                                 # Set to true to enable downsampling (default: false)
-  max_reads: 0                                   # Maximum number of read PAIRS to process
+  max_reads: 0                                   # Maximum number of read to process. 10000000 gives 10M SE reads, or 10M pairs (20M individual reads for PE). Set to 0 to disable.
 
 
 ## MitoGeneExtractor / barcode recovery parameters
@@ -120,7 +120,7 @@ rules:
   # ===== PER-SAMPLE: cost per job is independent of how many samples are in the run =====
   gene_fetch:                                    # gene-fetch: reference retrieval from NCBI GenBank
     mem_mb: 4096
-    partition: long
+    partition: PLACEHOLDER                       # Runtime scales on sample number. 
   fastp_qc:                                      # fastp: adapter trimming, QC, merging/deduplication (PE merge and concat modes)
     mem_mb: 8192
     threads: 4                                   # fastp --thread. Note gains flatten past ~8 even on deep samples
@@ -134,9 +134,8 @@ rules:
   downsample:                                    # reformat.sh: optional read downsampling (concat/merge/SE modes)
     mem_mb: 8192
   MitoGeneExtractor:                             # MitoGeneExtractor: protein-guided barcode extraction (concat/merge/SE modes)
-    mem_mb: 32768                                # Per sample per r/s combination; scales with read depth. The pipeline's dominant cost
-    partition: himem                             # Inherits runtime=720 (12 h) from the profile - raise it there if deep samples hit the wall clock
-
+    mem_mb: 32768                                # Per sample per r/s combination; scales with read depth.
+    partition: PLACEHOLDER                       # Submit to high memory nodes (iv available) to allow memory scaling upon retry.
   # ===== AGGREGATE: one job for the whole run, so memory grows with sample count =====
   rename_and_combine_cons:                       # rename_headers.py: standardise and combine MGE consensus headers across parameter combinations
     mem_mb: 4096
@@ -163,16 +162,16 @@ rules:
   structural_validation:                         # structural_validation.py: HMM-based extraction, reading frame and stop-codon checks
     mem_mb: 4096
     threads: 4                                   # CPUs given to each nhmmer call (--cpu). Processing is sub-linear, so >4 threads has diminishing returns
-    partition: medium
+    partition: PLACEHOLDER
   taxonomic_validation:                          # tv_local_blast.py: chunked BLASTn searches against local reference database
     mem_mb: 8192                                 # ~250 MB per concurrent (50 consensus seq) chunk, plus the summary table over all barcodes
     threads: 8                                   # Max concurrent single-threaded BLASTn chunks (50 sequences per chunk).
-    partition: medium
+    partition: PLACEHOLDER
   blast2taxonomy:                                # tv_blast2taxonomy.py: hierarchical taxonomic matching and best-barcode selection
-    mem_mb: 4096                                 # Holds every hit for every barcode: ~44 KB per barcode, so ~340 MB at 500 samples
+    mem_mb: 4096
   download_taxdump:                              # Download and extract the NCBI taxdump for blast2taxonomy
     mem_mb: 2048
   multiqc_plots:                                 # multiqc_plots.R: per-sample summary plots from pipeline metrics
-    mem_mb: 4096                                 # R data frames spanning all samples, so grows with sample count
+    mem_mb: 4096                                 # R data frames spanning all samples; grows with sample count
   multiqc:                                       # MultiQC: aggregate all QC reports into a single interactive HTML report
     mem_mb: 8192                                 # Parses every report in the run - the largest aggregate consumer at high sample counts
