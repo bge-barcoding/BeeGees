@@ -16,8 +16,9 @@ from pathlib import Path
 
 # Name of the MitoGeneExtractor executable provided on PATH by the BeeGees conda
 # environment (the bioconda 'mitogeneextractor' package). MGE is no longer
-# referenced via a user-supplied 'mge_path' in the config. If the bioconda 
-# package exposes the command under a different name, update this single constant.
+# referenced via a user-supplied 'mge_path' in the config; it is resolved from
+# the active conda environment instead. If the bioconda package exposes the
+# command under a different name, update this single constant.
 MGE_EXECUTABLE = "MitoGeneExtractor"
 
 
@@ -758,8 +759,9 @@ if downsampling_enabled:
                 echo "Placeholder output created: $(date)" >> {log.out}
                 exit 0
             fi
-        
-            reformat.sh in={input.merged_reads} \\
+            
+            reformat.sh -Xmx$(( {resources.mem_mb} * 80 / 100 ))m -eoom \\
+                        in={input.merged_reads} \\
                         out={output.downsampled} \\
                         samplereadstarget={params.max_reads} \\
                         sampleseed=12345 \\
@@ -1059,7 +1061,8 @@ if downsampling_enabled:
                 exit 0
             fi
 
-            reformat.sh in={input.concat_trimmed} \\
+            reformat.sh -Xmx$(( {resources.mem_mb} * 80 / 100 ))m -eoom \\
+                        in={input.concat_trimmed} \\
                         out={output.downsampled} \\
                         samplereadstarget={params.max_reads} \\
                         sampleseed=12345 \\
@@ -1185,7 +1188,6 @@ if downsampling_enabled:
         log:
             out=os.path.join(preprocessing_dir_se, "logs/downsample/{sample}.out"),
             err=os.path.join(preprocessing_dir_se, "logs/downsample/{sample}.err")
-        threads: rule_resources["downsample"]["threads"]
         resources:
             mem_mb=lambda wildcards, attempt: rule_resources["downsample"]["mem_mb"] * attempt
         retries: 3
@@ -1205,7 +1207,8 @@ if downsampling_enabled:
                 exit 0
             fi
 
-            reformat.sh in={input.se_trimmed} \\
+            reformat.sh -Xmx$(( {resources.mem_mb} * 80 / 100 ))m -eoom \\
+                        in={input.se_trimmed} \\
                         out={output.downsampled} \\
                         samplereadstarget={params.max_reads} \\
                         sampleseed=12345 \\
@@ -3063,11 +3066,11 @@ rule multiqc_plots:
             {params.taxdump_dir} \
             {params.run_mode} \
             >> {log} 2>&1
-
+        
         # Move static PNGs from mqc_dir to plots_dir
         find {params.mqc_dir} -maxdepth 1 -name "*.png" \
             -exec mv {{}} {params.plots_dir}/ \;
-
+        
         echo "Completed: $(date)" >> {log}
         """
 
@@ -3090,29 +3093,29 @@ rule multiqc:
     shell:
         """
         set -euo pipefail
-    
+        
         mkdir -p {params.output_dir}
         mkdir -p $(dirname {log})
-    
+        
         echo "Running MultiQC: $(date)" > {log}
         echo "Data dir:    {params.mqc_data_dir}" >> {log}
         echo "Config:      {input.mqc_config}" >> {log}
         echo "Output dir:  {params.output_dir}" >> {log}
-    
+        
         multiqc {params.mqc_data_dir} \
             --config {input.mqc_config} \
             --outdir {params.output_dir} \
             --filename multiqc_report.html \
             --force \
             >> {log} 2>&1
-    
+        
         # Copy report back to main output directory
         cp {params.output_dir}/multiqc_report.html \
         {main_output_dir}/multiqc_report.html
-    
+        
         echo "MultiQC complete: $(date)" >> {log}
         """
-    
+
 # Final clean up superfluous files
 rule cleanup_files:
     input:
@@ -3233,9 +3236,6 @@ rule cleanup_files:
             f.write("\nPreprocessing mode: concat")
 
 
-
-
-
 # ----- SE MitoGeneExtractor (mirrors MitoGeneExtractor_concat) -----
 rule MitoGeneExtractor_se:
     input:
@@ -3254,7 +3254,6 @@ rule MitoGeneExtractor_se:
         t=t,
         output_dir=barcode_recovery_dir_se,
         vulgar_dir=lambda wildcards: os.path.join(barcode_recovery_dir_se, f"logs/mge/{wildcards.sample}_r_{wildcards.r}_s_{wildcards.s}/")
-    threads: rule_resources["MitoGeneExtractor"]["threads"]
     resources:
         mem_mb=lambda wildcards, attempt: rule_resources["MitoGeneExtractor"]["mem_mb"] * attempt,
         slurm_partition=rule_resources["MitoGeneExtractor"]["partition"]
