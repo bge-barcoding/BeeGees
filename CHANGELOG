@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v3.0.5 (2026-08-21)
 
 - Taxonomic validation: `tv_local_blast.py` now batches queries into chunks of 50
   sequences per `blastn` invocation instead of running one process per sequence,
@@ -24,9 +24,9 @@
 - Structural validation: added `--threads`, passed from the rule, setting
   nhmmer's `--cpu` per invocation. Defaults to 1, so standalone behaviour is
   unchanged.
-- Right-sized the `structural_validation` rule resources from 32 GB / 1 thread /
-  himem to 4 GB / 8 threads / medium. Peak memory scales with sequence count
-  rather than read depth, measured at roughly 110 MB per 1000 samples.
+- Right-sized the rule resources to be flexible (to a degree) regardless of
+  sample sizes run. Resource allocations, considering retry memory scaling
+  should work with 1 or >500 samples.
 
 ## v3.0.4 (2026-08-13)
 
