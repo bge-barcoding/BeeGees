@@ -131,3 +131,93 @@ class TestPassesQualityCriteria:
         # barcode_base_count must be > 300; use 400 to satisfy that check
         result = self._result(barcode_base_count=400, barcode_ambiguous_bases=29)
         assert struct_val.passes_quality_criteria(result) is True
+
+
+class TestRunNhmmerOnSequence:
+    """The nhmmer wrapper: --cpu wiring and temp-file cleanup.
+
+    nhmmer is not available in CI, so subprocess.run is replaced with a fake that
+    writes a tabular output file and records the command it was given.
+    """
+
+    @staticmethod
+    def _fake_nhmmer(recorder, write_tblout=True):
+        import subprocess as _subprocess
+
+        def fake_run(cmd, *args, **kwargs):
+            recorder.append(list(cmd))
+            if write_tblout:
+                tblout = cmd[cmd.index('--tblout') + 1]
+                # A no-hit tabular output: comment lines only.
+                Path(tblout).write_text("# target name  accession  query name\n#\n")
+            return _subprocess.CompletedProcess(cmd, 0, "", "")
+
+        return fake_run
+
+    def test_cpu_defaults_to_one(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(struct_val.subprocess, "run", self._fake_nhmmer(calls))
+
+        struct_val.run_nhmmer_on_sequence("ACGT" * 20, "SEQ1", "/fake/COI-5P.hmm")
+
+        cmd = calls[0]
+        assert cmd[cmd.index('--cpu') + 1] == "1"
+
+    def test_cpu_reflects_threads_argument(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(struct_val.subprocess, "run", self._fake_nhmmer(calls))
+
+        struct_val.run_nhmmer_on_sequence("ACGT" * 20, "SEQ1", "/fake/COI-5P.hmm", threads=8)
+
+        cmd = calls[0]
+        assert cmd[cmd.index('--cpu') + 1] == "8"
+
+    def test_no_temp_files_left_behind(self, monkeypatch, tmp_path):
+        """Regression: the scratch query/tabular files used to leak, two per sequence."""
+        tmpdir = tmp_path / "scratch"
+        tmpdir.mkdir()
+        monkeypatch.setenv("TMPDIR", str(tmpdir))
+        monkeypatch.setattr(struct_val.tempfile, "tempdir", None)
+        calls = []
+        monkeypatch.setattr(struct_val.subprocess, "run", self._fake_nhmmer(calls))
+
+        for i in range(25):
+            struct_val.run_nhmmer_on_sequence("ACGT" * 20, f"SEQ{i}", "/fake/COI-5P.hmm")
+
+        assert len(calls) == 25
+        # Guard against a vacuous pass: the scratch files must actually have been
+        # created under the directory we are then asserting is empty.
+        used = [c[c.index('--tblout') + 1] for c in calls]
+        assert all(u.startswith(str(tmpdir)) for u in used), used[:2]
+        assert list(tmpdir.iterdir()) == []
+
+    def test_temp_files_cleaned_up_when_nhmmer_fails(self, monkeypatch, tmp_path):
+        tmpdir = tmp_path / "scratch"
+        tmpdir.mkdir()
+        monkeypatch.setenv("TMPDIR", str(tmpdir))
+        monkeypatch.setattr(struct_val.tempfile, "tempdir", None)
+
+        import subprocess as _subprocess
+
+        seen = []
+
+        def failing_run(cmd, *args, **kwargs):
+            seen.append(cmd[cmd.index('--tblout') + 1])
+            return _subprocess.CompletedProcess(cmd, 1, "", "nhmmer: fatal error")
+
+        monkeypatch.setattr(struct_val.subprocess, "run", failing_run)
+
+        assert struct_val.run_nhmmer_on_sequence("ACGT" * 20, "SEQ1", "/fake/hmm") is None
+        assert seen and seen[0].startswith(str(tmpdir)), seen
+        assert list(tmpdir.iterdir()) == []
+
+    def test_missing_tabular_output_is_not_reported_as_missing_nhmmer(self, monkeypatch, caplog):
+        """An absent --tblout must read as 'no hits', not 'nhmmer not found in PATH'."""
+        calls = []
+        monkeypatch.setattr(struct_val.subprocess, "run",
+                            self._fake_nhmmer(calls, write_tblout=False))
+
+        result = struct_val.run_nhmmer_on_sequence("ACGT" * 20, "SEQ1", "/fake/hmm")
+
+        assert result is None
+        assert "nhmmer not found in PATH" not in caplog.text

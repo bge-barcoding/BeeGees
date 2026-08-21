@@ -111,6 +111,8 @@ INPUTS
 
 Optional:
 --code/-c: Genetic code table for translation (default: 1 for standard genetic code)
+--threads/-t: CPUs passed to each nhmmer call via --cpu (default: 1). nhmmer is invoked once per
+  sequence, so this sets threads per invocation rather than the number of concurrent invocations.
 --log-file LOG_FILE: Specify a custom path for the log file (default: creates timestamped log)
 --verbose, -v: Enable detailed debug logging
 --disable-selection: Skip best-per-process selection and output all passing sequences instead
@@ -320,28 +322,33 @@ def get_complete_codons(seq, offset):
             complete_codons += codon
     return complete_codons
     
-def run_nhmmer_on_sequence(sequence, seq_id, hmm_file):
+def run_nhmmer_on_sequence(sequence, seq_id, hmm_file, threads=1):
     try:
-        # Create FASTA file with the sequence
-        with tempfile.NamedTemporaryFile(mode='w+', suffix='.fasta', delete=False) as temp_input, \
-             tempfile.NamedTemporaryFile(mode='w+', suffix='.tbl', delete=False) as temp_tblout:
-            
-            temp_input.write(f">{seq_id}\n{sequence}\n")
-            temp_input.flush()
-            
+        # One temporary directory per call, removed on exit (including on error).
+        # The scratch query and tabular files previously used
+        # NamedTemporaryFile(delete=False) and were never unlinked, leaking two
+        # files per sequence into TMPDIR for the lifetime of the job.
+        with tempfile.TemporaryDirectory(prefix='structval_nhmmer_') as temp_dir:
+            input_path = os.path.join(temp_dir, 'query.fasta')
+            tblout_path = os.path.join(temp_dir, 'hits.tbl')
+
+            # Create FASTA file with the sequence
+            with open(input_path, 'w') as temp_input:
+                temp_input.write(f">{seq_id}\n{sequence}\n")
+
             # Run nhmmer with separate tabular output file
             nhmmer_cmd = [
                 'nhmmer',
-                '--tblout', temp_tblout.name,
+                '--tblout', tblout_path,
                 '--incE', '1e-3',
-                '--cpu', '1',
+                '--cpu', str(threads),
                 str(hmm_file),
-                temp_input.name
+                input_path
             ]
-            
+
             logging.debug(f"Running nhmmer on sequence {seq_id}: {' '.join(nhmmer_cmd)}")
             result = subprocess.run(nhmmer_cmd, capture_output=True, text=True)
-            
+
             if result.returncode != 0:
                 logging.error(f"nhmmer failed for {seq_id}: {result.stderr}")
                 return None
@@ -349,17 +356,24 @@ def run_nhmmer_on_sequence(sequence, seq_id, hmm_file):
             # Log complete nhmmer output for each sample
             logging.debug(f"=== COMPLETE nhmmer OUTPUT for {seq_id} ===")
             logging.debug(result.stdout)
-            
-            # Parse the clean tabular output file
-            with open(temp_tblout.name, 'r') as f:
-                tabular_content = f.read()
-            
+
+            # Parse the clean tabular output file. nhmmer writes this whenever
+            # --tblout is given, but treat an absent file as "no hits" rather
+            # than letting it surface as the FileNotFoundError handler below,
+            # which would misreport it as a missing nhmmer binary.
+            if os.path.exists(tblout_path):
+                with open(tblout_path, 'r') as f:
+                    tabular_content = f.read()
+            else:
+                logging.warning(f"nhmmer produced no tabular output for {seq_id}")
+                tabular_content = ''
+
             logging.debug(f"=== TABULAR OUTPUT for {seq_id} ===")
             logging.debug(tabular_content)
-            
+
             # Parse tabular output to get best alignment
             alignment_result = parse_nhmmer_result(tabular_content, seq_id)
-            
+
             return alignment_result
 
     except FileNotFoundError:
@@ -506,7 +520,7 @@ def trim_sequence_ends(sequence):
     
     return trimmed
 	
-def align_sequence_with_nhmmer(record, hmm_file, hmm_length):
+def align_sequence_with_nhmmer(record, hmm_file, hmm_length, threads=1):
     """
     Process sequence by:
     1. Removing tilde characters (preserve gaps)
@@ -529,7 +543,7 @@ def align_sequence_with_nhmmer(record, hmm_file, hmm_length):
         logging.debug(f"After gap-to-N replacement: {n_padded_seq[:100]}...")
         
         # Step 3: Run nhmmer on the single N-padded sequence
-        nhmmer_result = run_nhmmer_on_sequence(n_padded_seq, record.id, hmm_file)
+        nhmmer_result = run_nhmmer_on_sequence(n_padded_seq, record.id, hmm_file, threads)
         if not nhmmer_result:
             logging.warning(f"No significant nhmmer alignment found for sequence {record.id}")
             return None, original_seq_before_nhmmer
@@ -773,7 +787,7 @@ def format_barcode_gaps(sequence):
 def format_sequence_id(process_id, parameters):
     return f"{process_id}_{parameters}" if parameters else process_id
 	
-def analyse_fasta(file_path, hmm_file, hmm_length, trans_table):
+def analyse_fasta(file_path, hmm_file, hmm_length, trans_table, threads=1):
     try:
         # Initialise dictionaries
         results = {}
@@ -856,7 +870,7 @@ def analyse_fasta(file_path, hmm_file, hmm_length, trans_table):
                 longest_stretch = calculate_longest_stretch_full_seq(seq)
 
                 # Use nhmmer to extract and align barcode region
-                aligned_barcode, original_seq_before_nhmmer = align_sequence_with_nhmmer(record, hmm_file, hmm_length)
+                aligned_barcode, original_seq_before_nhmmer = align_sequence_with_nhmmer(record, hmm_file, hmm_length, threads)
                 
                 # Initialise translation variables
                 reading_frame = -1
@@ -1171,6 +1185,8 @@ def main():
     
     # Optional arguments
     parser.add_argument('--code', '-c', type=int, default=1, help='Genetic code table for translation (default: 1 for standard code)')
+    parser.add_argument('--threads', '-t', type=int, default=1,
+                        help='CPUs passed to each nhmmer call via --cpu (default: 1). nhmmer is invoked once per sequence, so this sets threads per invocation, not concurrent invocations.')
     parser.add_argument('--log-file', help='Path to log file (optional)')
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose output')
     parser.add_argument('--disable-selection', action='store_true', help='Skip best-per-process selection and output all passing sequences instead')
@@ -1234,7 +1250,7 @@ def main():
         # Analyse each FASTA file
         for file in args.input:
             logging.info(f"Processing file: {file}")
-            results = analyse_fasta(file, args.hmm, hmm_length, args.code)
+            results = analyse_fasta(file, args.hmm, hmm_length, args.code, args.threads)
             for seq_id, result in results.items():
                 result['seq_id'] = seq_id
                 all_results.append(result)
