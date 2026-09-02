@@ -50,28 +50,42 @@ BeeGees is a Snakemake workflow for recovering high-quality protein-coding DNA b
 - **Reads** in `.fastq`/`.fastq.gz` format - either paired-end or single-end from Ultima Genomics sequencing.
 - **`samples.csv`**
 - **`sequence_references.csv`**
-- **Activated conda environment** (see `beegees_env.yaml`).
-> **Note for pip users:** all 'scientific tool' dependencies (Snakemake, MitoGeneExtractor, fastp, TrimGalore, BLAST, nhmmer, etc.) come from the BeeGees conda environment. `pip install beegees` provides the CLI only - the pipeline will not run without the BeeGees conda environment active.
+- **BeeGees installed via conda** (see [Installation](#installation)), with its environment activated.
+> **Note for pip users:** all 'scientific tool' dependencies (Snakemake, MitoGeneExtractor, fastp, TrimGalore, BLAST, nhmmer, etc.) come from conda. `pip install beegees` provides the CLI only - the pipeline will not run unless those tools are present on `PATH`.
 
 
 ---
 
 
-# Installation # 
-The `beegees` pipeline can currently be downloaded via by:
-1. Cloning the beegees respository
+# Installation #
+```bash
+conda install -c conda-forge -c bioconda beegees
 ```
-gh repo clone bge-barcoding/BeeGees
-# Or
-wget https://github.com/bge-barcoding/BeeGees/archive/refs/heads/main.zip
-```
-3. As a pip through PyPi
-```
+> This installs the `beegees` CLI together with every tool the workflow invokes (Snakemake, MitoGeneExtractor, fastp, TrimGalore, BLAST, nhmmer, bwa, samtools, BBTools, MultiQC and R). Nothing else needs installing.
+
+<details>
+<summary><b>Alternative: pip</b></summary>
+
+```bash
 pip install beegees
 ```
-> **Pip users:** after installation, run `beegees init` in your working directory to copy the template `config/`, `profiles/`, and `samples_template.csv` into the current directory. These files are required before running the pipeline (see section below).
 
-> `beegees` will be available as a conda package through bioconda in the near future.
+`pip install beegees` provides the CLI **only** — every scientific tool listed above must already be on `PATH`. Prefer the conda install unless you are managing those dependencies yourself.
+</details>
+
+<details>
+<summary><b>Alternative: from source (contributors)</b></summary>
+
+```bash
+git clone https://github.com/bge-barcoding/BeeGees.git
+cd BeeGees
+conda create -n beegees-dev -c conda-forge -c bioconda beegees --only-deps
+conda activate beegees-dev
+pip install -e .
+```
+
+`--only-deps` installs the tools without the packaged `beegees`; `pip install -e .` then points the CLI at your checkout, so edits under `beegees/workflow/` take effect immediately. Without the editable install the CLI runs the *installed* Snakefile rather than your checkout.
+</details>
 
 
 --- 
@@ -79,18 +93,15 @@ pip install beegees
 
 # Quick start #
 
-> **Installation note:** `pip install beegees` provides the `beegees` CLI only — all scientific tool dependencies (Snakemake, MitoGeneExtractor, fastp, TrimGalore, BLAST, nhmmer, etc.) must come from the conda environment. A bioconda package that bundles all dependencies is planned; until then, the clone workflow below is recommended for all users.
-
-### 1. Clone the repository and create the conda environment
+### 1. Create a working directory and initialise templates
 ```bash
-git clone https://github.com/bge-barcoding/BeeGees.git
-cd BeeGees
-conda env create -f beegees_env.yaml
-conda activate beegees_env
+mkdir my-run && cd my-run
+beegees init
 ```
+This copies the template `config/`, `profiles/` and `samples_template.csv` into the current directory. Every subsequent step runs from here.
 
 ### 2. Complete samples.csv
-Create `samples.csv` or edit `beegees/config/samples_template.csv`, with sample identifier (ID), forward (SE data only) and reverse read paths (PE data), and hierarchical taxonomy or NCBI taxonomic identifiers (taxid) — [see section below for details](#samplescsv).
+Create `samples.csv` or edit the `samples_template.csv` written by `beegees init`, with sample identifier (ID), forward (SE data only) and reverse read paths (PE data), and hierarchical taxonomy or NCBI taxonomic identifiers (taxid) — [see section below for details](#samplescsv).
 
 ### 3. Download a BLASTn database and taxonomy mappings file
 Required for taxonomic validation of generated barcode consensus sequences — [see section below for details on available databases](#validation-process) or [guidance on creating your own BLASTn database and mapping file](https://github.com/bge-barcoding/BeeGees/blob/main/docs/README_custom_blast_dbs.md).
@@ -100,9 +111,9 @@ Fill in paths to required files, set parameters, credentials, and resource alloc
 
 ### 5. Run BeeGees using the `beegees run` command with the appropriate profile:
 
-**SLURM** (recommended for SLURM-based HPC clusters): run directly on the login node — Snakemake farms each rule out as a separate SLURM job:
+**SLURM** (recommended for SLURM-based HPC clusters): Snakemake farms each rule out as a separate SLURM job, so this is submitted from the login node. Wrap the command in a small sbatch script (see [`run_slurm.sh`](https://github.com/bge-barcoding/BeeGees/blob/main/run_slurm.sh) in the repository for a template):
 ```bash
-sbatch run_slurm.sh
+beegees run --config config/config.yaml --profile slurm --log-file beegees.log
 ```
 
 **Local** (all rules run on the current node — suitable for interactive compute sessions):
@@ -111,11 +122,11 @@ sbatch run_slurm.sh
 srun --pty --mem=128G --cpus-per-task=16 --time=08:00:00 bash
 
 # Run BeeGees locally
-bash run_local.sh
+beegees run --config config/config.yaml --profile local --log-file beegees.log
 ```
 
 > Use `beegees run --help` for additional options (e.g. `--cores`, `--dryrun`, `--log-file PATH` to write a live log file).
-> Depending on your HPC cluster architecture and job scheduler, you may need to edit the partition in `run_*.sh`, `config.yaml` rule resource block, and `slurm_partition` in `profiles/slurm/config.yaml`.
+> Depending on your HPC cluster architecture and job scheduler, you may need to edit the partition in your sbatch script, the `config.yaml` rule resource block, and `slurm_partition` in `profiles/slurm/config.yaml`. The pipe is currently set up for a SLURM HPC.
 
 
 # Workflow #
@@ -221,7 +232,7 @@ The file must contain the headers **`ID`** and **`protein_reference_path`**:
 # Configuration #
  
 ## config.yaml ##
-- Update `beegees/config/config.yaml` (generated by `beegees init` into the current directory for pip users) with the required paths, variables, and credentials.
+- Update `config/config.yaml` (written into the current directory by `beegees init`) with the required paths, variables, and credentials.
 - 
 **General**
 ```
@@ -508,7 +519,7 @@ Taxonomic validation runs in two steps, via `tv_local_blast.py` and `tv_blast2ta
  
 **2. Taxonomic assignment validation.** BLASTn results are checked against expected taxonomy using hierarchical matching and quality-based filtering:
 1. Parse the local BLASTn summary CSV, per-sample expected lineages, database taxonomy mappings, and structurally validated sequences.
-2. Discard hits below `min_pident` or below `min_length` (set in `beegees/config/config.yaml`).
+2. Discard hits below `min_pident` or below `min_length` (set in `config/config.yaml`).
 3. Compare remaining hits against the expected lineage by exact string matching at family, genus or species level (highest rank considered is set by `taxval_rank`). The first (top) hit matching at any allowed rank is accepted.
 4. Select the best sequence per process ID from those with taxonomy matches, prioritising in order: lowest matched rank (species > genus > family), then fewest gaps, fewest mismatches, highest percent identity, lowest e-value, highest alignment length, highest MGE `s` value, highest MGE `r` value, and finally sequences containing `fcleaner` in the seq ID (preferring cleaned consensus sequences).
 5. Write the taxonomic validation CSV.
