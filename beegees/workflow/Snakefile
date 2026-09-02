@@ -1356,7 +1356,7 @@ rule MitoGeneExtractor_merge:
             if [ $EXIT_CODE -eq 137 ]; then
                 echo "ERROR: Process killed (likely out of memory)" >> {log.out}
                 echo "  Current allocation: $(({resources.mem_mb} / 1024))GB" >> {log.out}
-                echo "  File size: ${{FILE_SIZE_GB}}GB" >> {log.out}
+                echo "  File size: ${{FILE_SIZE_H}}" >> {log.out}
                 echo "  Sequences processed: $NUM_SEQUENCES" >> {log.out}
             elif [ $EXIT_CODE -eq 124 ]; then
                 echo "ERROR: Process timed out" >> {log.out}
@@ -1503,7 +1503,7 @@ rule MitoGeneExtractor_concat:
             if [ $EXIT_CODE -eq 137 ]; then
                 echo "ERROR: Process killed (likely out of memory)" >> {log.out}
                 echo "  Current allocation: $(({resources.mem_mb} / 1024))GB" >> {log.out}
-                echo "  File size: ${{FILE_SIZE_GB}}GB" >> {log.out}
+                echo "  File size: ${{FILE_SIZE_H}}" >> {log.out}
                 echo "  Sequences processed: $NUM_SEQUENCES" >> {log.out}
             elif [ $EXIT_CODE -eq 124 ]; then
                 echo "ERROR: Process timed out" >> {log.out}
