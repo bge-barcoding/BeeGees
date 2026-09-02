@@ -1,21 +1,22 @@
 # Changelog
 
 ## v3.0.6 (2026-09-02)
-- Packaging: the bioconda recipe was missing `bbmap` (`reformat.sh`, used by the
+- The bioconda recipe was missing `bbmap` (`reformat.sh`, used by the
   optional downsampling rules), `samtools`, `wget` (`download_taxdump`) and
   `r-yaml` (`library(yaml)` in `multiqc_plots.R`, previously satisfied only as a
   transitive tidyverse dependency). Enabling `downsampling.enabled` or setting
   `fasta_cleaner.reference_dir` on a conda install failed with a missing binary.
 - Removed the undeclared `bc` dependency from the MitoGeneExtractor rules, which
-  computed a log-only file size. Replaced with `numfmt`, already used throughout
-  the Snakefile. `bc` was on the default execution path and present in no
-  environment file.
-- `04_reference_filter.py` no longer exits when `samtools` is absent. samtools is
-  used only for the `flagstat` summary; filtering parses SAM flags in pure Python.
-  A missing samtools now warns and reports zeroed statistics.
-- `beegees_env.yaml` pinned `beegees==3.0.4`, so the documented environment
-  installed the previous release's workflow. Now tracks the current version, and
-  gained `samtools`, `wget` and `r-yaml` to match the recipe.
+  used it only to format a file size for the log. Replaced with `numfmt`, already
+  used throughout the Snakefile. `bc` was on the default execution path and
+  present in no environment file.
+- `04_reference_filter.py` no longer exits when `samtools` is absent. samtools
+  supplies only the `flagstat` summary; filtering itself parses SAM flags in pure
+  Python. A missing samtools now warns and reports zeroed statistics.
+- Removed `beegees_env.yaml` and rewrote the installation docs around
+  `conda install -c conda-forge -c bioconda beegees`.
+- `run_local.sh` and `run_slurm.sh` now pass `--config config/config.yaml`,
+  matching the layout `beegees init` creates rather than a clone-relative path.
 
 ## v3.0.5 (2026-08-21)
 - Taxonomic validation: `tv_local_blast.py` now batches queries into chunks of 50
