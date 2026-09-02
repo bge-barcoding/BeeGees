@@ -1321,12 +1321,12 @@ rule MitoGeneExtractor_merge:
         
         # File size analysis
         FILE_SIZE_BYTES=$(stat -c%s "{input.DNA}")
-        FILE_SIZE_GB=$(echo "scale=2; $FILE_SIZE_BYTES / 1024 / 1024 / 1024" | bc)
+        FILE_SIZE_H=$(numfmt --to=iec "$FILE_SIZE_BYTES")
         NUM_SEQUENCES=$(grep -c "^@" "{input.DNA}" || echo "0")
         
         echo "===== Input Files =====" >> {log.out}
         echo "Input file: {input.DNA}" >> {log.out}
-        echo "File size: ${{FILE_SIZE_GB}}GB ($FILE_SIZE_BYTES bytes)" >> {log.out}
+        echo "File size: ${{FILE_SIZE_H}} ($FILE_SIZE_BYTES bytes)" >> {log.out}
         echo "Number of sequences: $NUM_SEQUENCES" >> {log.out}        
         echo "Input AA file: {input.AA}" >> {log.out}
             
@@ -1468,12 +1468,12 @@ rule MitoGeneExtractor_concat:
         
         # File size analysis
         FILE_SIZE_BYTES=$(stat -c%s "{input.DNA}")
-        FILE_SIZE_GB=$(echo "scale=2; $FILE_SIZE_BYTES / 1024 / 1024 / 1024" | bc)
+        FILE_SIZE_H=$(numfmt --to=iec "$FILE_SIZE_BYTES")
         NUM_SEQUENCES=$(grep -c "^@" "{input.DNA}" || echo "0")
         
         echo "===== Input Files =====" >> {log.out}
         echo "Input file: {input.DNA}" >> {log.out}
-        echo "File size: ${{FILE_SIZE_GB}}GB ($FILE_SIZE_BYTES bytes)" >> {log.out}
+        echo "File size: ${{FILE_SIZE_H}} ($FILE_SIZE_BYTES bytes)" >> {log.out}
         echo "Number of sequences: $NUM_SEQUENCES" >> {log.out}        
         echo "Input AA file: {input.AA}" >> {log.out}
             
@@ -3298,12 +3298,12 @@ rule MitoGeneExtractor_se:
         echo "Sample: {wildcards.sample}" >> {log.out}
 
         FILE_SIZE_BYTES=$(stat -c%s "{input.DNA}")
-        FILE_SIZE_GB=$(echo "scale=2; $FILE_SIZE_BYTES / 1024 / 1024 / 1024" | bc)
+        FILE_SIZE_H=$(numfmt --to=iec "$FILE_SIZE_BYTES")
         NUM_SEQUENCES=$(grep -c "^@" "{input.DNA}" || echo "0")
 
         echo "===== Input Files =====" >> {log.out}
         echo "Input file: {input.DNA}" >> {log.out}
-        echo "File size: ${{FILE_SIZE_GB}}GB ($FILE_SIZE_BYTES bytes)" >> {log.out}
+        echo "File size: ${{FILE_SIZE_H}} ($FILE_SIZE_BYTES bytes)" >> {log.out}
         echo "Number of sequences: $NUM_SEQUENCES" >> {log.out}
         echo "Input AA file: {input.AA}" >> {log.out}
 
