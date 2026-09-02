@@ -130,7 +130,7 @@ rules:
     mem_mb: 2048
   quality_trim:                                  # Trim Galore: secondary quality trimming of concatenated reads (concat mode)
     mem_mb: 8192
-    threads: 4                                   # trim_galore --cores. Note it spawns ~3-4x this many processes (cutadapt + pigz), so 4 occupies ~15 CPUs
+    threads: 4                                   # trim_galore --cores. v0.6.x spawns ~3-4x this many processes (cutadapt + pigz), so 4 occupies ~15 CPUs. v2.x is a single binary using cores+4
   downsample:                                    # reformat.sh: optional read downsampling (concat/merge/SE modes)
     mem_mb: 8192
   MitoGeneExtractor:                             # MitoGeneExtractor: protein-guided barcode extraction (concat/merge/SE modes)
