@@ -81,7 +81,9 @@ structural_validation:
 taxonomic_validation:
     blast_db: "/path/to/BOLDistilled/"           # Path to BLASTn database directory or FASTA file
     db_taxonomy: "/PATH/TO/BOLDistilled/BOLDistilled_taxonomy/source/BOLDistilled_COI_[version]_TAXONOMY.tsv"
-    taxval_rank: "family"                        # Taxonomic rank for validation (phylum, class, order, family, genus, species) (default & recommended: family)
+    taxval_rank: "family"                        # Coarsest rank a BLASTn hit may match at to count as validated (order, family, genus, species) (default & recommended: family).
+                                                 # A hit matching only above this rank is NOT a match: at "family", a hit sharing only the expected order is rejected.
+                                                 # Relaxed per sample to the coarsest rank present in that sample's expected_taxonomy if this rank has no value there.
     expected_taxonomy: "/PATH/TO/EXPECTED_TAXONOMY"
                                                  # It must contain the following columns: ID,phylum,class,order,family,genus,speces. ID must equal 'ID' from samples_file above
     verbose: true                                # Enable verbose logging

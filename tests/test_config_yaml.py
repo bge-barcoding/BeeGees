@@ -105,7 +105,9 @@ class TestConfigYamlStructure:
     # taxonomic_validation section
     def test_taxonomic_validation_taxval_rank_valid(self, config):
         rank = config.get("taxonomic_validation", {}).get("taxval_rank", "")
-        valid_ranks = {"phylum", "class", "order", "family", "genus", "species"}
+        # Only these four are accepted: matching is restricted to them, and tv_blast2taxonomy.py's
+        # argparse choices reject anything else
+        valid_ranks = {"order", "family", "genus", "species"}
         assert rank.lower() in valid_ranks
 
     # rules section

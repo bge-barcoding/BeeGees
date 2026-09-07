@@ -301,7 +301,9 @@ verbose: Enable verbose logging (default: false)
 ```
 database: Path to a BLASTn database directory, or to a FASTA file to build one from (using makeblastdb)
 database_taxonomy: TSV of taxonomic mappings corresponding to records in the BLASTn database
-taxval_rank: Highest taxonomic rank to validate at (default and recommended: family)
+taxval_rank: Coarsest rank a BLASTn hit may match at to count as validated; matches above it are
+             rejected (default and recommended: family). Relaxed per sample to the coarsest rank
+             present in that sample's expected_taxonomy if this rank has no value there
 expected_taxonomy: CSV with columns Process ID,phylum,class,order,family,genus,species, where
                    Process ID equals ID in samples_file. If hierarchical taxonomy was supplied in
                    samples.csv, that file can be reused here
@@ -520,8 +522,8 @@ Taxonomic validation runs in two steps, via `tv_local_blast.py` and `tv_blast2ta
 **2. Taxonomic assignment validation.** BLASTn results are checked against expected taxonomy using hierarchical matching and quality-based filtering:
 1. Parse the local BLASTn summary CSV, per-sample expected lineages, database taxonomy mappings, and structurally validated sequences.
 2. Discard hits below `min_pident` or below `min_length` (set in `config/config.yaml`).
-3. Compare remaining hits against the expected lineage by exact string matching at family, genus or species level (highest rank considered is set by `taxval_rank`). The first (top) hit matching at any allowed rank is accepted.
-4. Select the best sequence per process ID from those with taxonomy matches, prioritising in order: lowest matched rank (species > genus > family), then fewest gaps, fewest mismatches, highest percent identity, lowest e-value, highest alignment length, highest MGE `s` value, highest MGE `r` value, and finally sequences containing `fcleaner` in the seq ID (preferring cleaned consensus sequences).
+3. Compare remaining hits against the expected lineage by exact string matching at species, genus, family or order level. `taxval_rank` sets the **validation floor** — the coarsest rank a match may be accepted at — and matches above it are rejected, so at the default of `family` a hit sharing only the expected order is not a match. The floor is resolved per sample: if the configured rank has no value in that sample's expected taxonomy, the coarsest rank that does becomes the floor (reported in the `expected_taxonomy_rank` column), so a sample with no expected family is still validated at order. The first hit matching at or below the floor is accepted — hits are supplied percent-identity descending, so this is the highest-identity matching hit, not necessarily the one matching most specifically.
+4. Select the best sequence per process ID from those with taxonomy matches, prioritising in order: lowest matched rank (species > genus > family), then fewest gaps, fewest mismatches, highest percent identity, lowest e-value, highest alignment length, highest MGE `s` value, highest MGE `r` value, and finally sequences containing `fcleaner` in the seq ID (preferring cleaned consensus sequences). A process ID whose sequences all fail validation has no selected sequence and contributes nothing to the output FASTA.
 5. Write the taxonomic validation CSV.
 
 ---

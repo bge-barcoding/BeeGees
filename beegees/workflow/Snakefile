@@ -178,6 +178,18 @@ def validate_taxonomic_validation_config(config):
             sys.stderr.write("WARNING: 'min_pident' must be a valid number\n")
             sys.exit(1)
 
+    # Validate taxval_rank: it sets the validation floor, and tv_blast2taxonomy.py accepts only
+    # these four ranks. Caught here so a bad value fails at parse time rather than part-way
+    # through a run, when the blast2taxonomy rule would be rejected by argparse.
+    # Matched case-sensitively, exactly as the script's argparse choices are, so a value accepted
+    # here cannot be rejected later.
+    taxval_rank = taxonomic_validation_params.get("taxval_rank", "family")
+    valid_taxval_ranks = ("order", "family", "genus", "species")
+    if taxval_rank not in valid_taxval_ranks:
+        sys.stderr.write(f"WARNING: 'taxval_rank' must be one of {', '.join(valid_taxval_ranks)} "
+                         f"(lowercase; got: {taxval_rank})\n")
+        sys.exit(1)
+
 # Run all validations
 validate_config(config)
 validate_fastp_config(config)
