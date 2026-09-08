@@ -3081,7 +3081,7 @@ rule multiqc_plots:
         
         # Move static PNGs from mqc_dir to plots_dir
         find {params.mqc_dir} -maxdepth 1 -name "*.png" \
-            -exec mv {{}} {params.plots_dir}/ \;
+            -exec mv {{}} {params.plots_dir}/ \\;
         
         echo "Completed: $(date)" >> {log}
         """
