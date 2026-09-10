@@ -306,7 +306,9 @@ taxval_rank: Coarsest rank a BLASTn hit may match at to count as validated; matc
              present in that sample's expected_taxonomy if this rank has no value there
 expected_taxonomy: CSV with columns Process ID,phylum,class,order,family,genus,species, where
                    Process ID equals ID in samples_file. If hierarchical taxonomy was supplied in
-                   samples.csv, that file can be reused here
+                   samples.csv, that file can be reused here. Names are compared to the database
+                   taxonomy ignoring case and internal whitespace, so "sciuridae", "Sciuridae"
+                   and "SCIURIDAE" are equivalent
 min_pident: Minimum percent identity for a BLAST hit to be retained
 min_length: Minimum alignment length for a BLAST hit to be retained
 verbose: Enable verbose logging (default: true)

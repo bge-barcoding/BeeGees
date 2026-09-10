@@ -10,7 +10,8 @@ PROCESS OVERVIEW
 ================
 1. Parses BLAST results (CSV), expected taxonomy mappings, BLAST database taxonomy (TSV), and input sequences
 2. For each sequence: applies quality filters (see below) -> finds first matching hit -> performs taxonomic validation
-3. Uses hierarchical matching strategy (species/genus/family/order only, exact string matching),
+3. Uses hierarchical matching strategy (species/genus/family/order only, whole-name matching that
+   ignores case and internal whitespace),
    rejecting matches at ranks coarser than the validation floor (see VALIDATION STRATEGY)
 4. Selects first hit with matching taxonomy after quality filtering
 5. Outputs validation results and filtered sequences
@@ -56,7 +57,8 @@ OPTIONAL:
 VALIDATION STRATEGY
 ===================
 - Restricts matching to species, genus, family, order ranks only
-- Uses exact string comparison between BLAST hit taxonomy and expected lineage
+- Compares whole taxon names between BLAST hit taxonomy and expected lineage, ignoring case and
+  internal whitespace, so a lowercase expected_taxonomy file matches a capitalised database
 - --taxval-rank sets the COARSEST rank at which a match may be accepted (the "validation floor").
   A hit matching only at a rank coarser than the floor is rejected: with a floor of family, a hit
   sharing only the expected order is NOT a match.
@@ -96,6 +98,17 @@ from typing import Dict, List, Optional, Tuple
 # Ranks matching is restricted to, ordered most specific to least specific. Matching always
 # prefers the most specific rank, so this order is significant.
 RANK_HIERARCHY = ['species', 'genus', 'family', 'order']
+
+def normalise_taxon(value: str) -> str:
+    """
+    Fold a taxon name for comparison: case-insensitive, internal whitespace collapsed.
+
+    Expected taxonomy is user-supplied while database taxonomy follows its own conventions, so
+    'sciuridae', 'Sciuridae' and 'SCIURIDAE' must all match, as must 'Sciurus  vulgaris' and
+    'Sciurus vulgaris'. Only the comparison is folded - expected_taxonomy, obs_taxonomy and
+    matched_rank still report the strings as they appear in their source files.
+    """
+    return ' '.join(value.split()).casefold()
 
 def allowed_ranks_for(floor_rank: str) -> List[str]:
     """
@@ -463,7 +476,9 @@ def check_hit_matches_lineage(hit_taxonomy: Dict[str, str], expected_lineage: Di
     """
     Check if a hit's taxonomy matches the expected lineage at any permitted rank.
     Returns (matched_taxonomy, matched_rank) or (None, None)
-    Uses exact string matching, and only at the ranks in allowed_ranks (see allowed_ranks_for).
+    Whole-name matching, folded for case and internal whitespace (see normalise_taxon), and only
+    at the ranks in allowed_ranks (see allowed_ranks_for). The observed name is returned with the
+    database's own casing, not the expected file's.
 
     Ranks coarser than the validation floor are not consulted at all, so a hit sharing only the
     expected order is not a match when the floor is family.
@@ -472,10 +487,10 @@ def check_hit_matches_lineage(hit_taxonomy: Dict[str, str], expected_lineage: Di
     for rank in allowed_ranks:
         observed_at_rank = hit_taxonomy.get(rank, '').strip()
         expected_at_rank = expected_lineage.get(rank, '').strip()
-        
+
         if observed_at_rank and expected_at_rank:
-            # Exact string match only
-            if observed_at_rank == expected_at_rank:
+            # Whole-name match, ignoring case and internal whitespace differences
+            if normalise_taxon(observed_at_rank) == normalise_taxon(expected_at_rank):
                 return observed_at_rank, rank
     
     return None, None
