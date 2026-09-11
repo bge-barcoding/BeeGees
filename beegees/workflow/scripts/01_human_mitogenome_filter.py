@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Human Mitogenome Mapping Filter - Memory Efficient Version
+Human Mitogenome Mapping Filter
 Removes sequences that map to human mitochondrial or nuclear genome using minimap2, bwa-mem, or bwa-aln
 
 Key improvements:
@@ -78,8 +78,7 @@ def build_bwa_index(reference_fasta: str) -> bool:
         result = subprocess.run(
             ['bwa', 'index', reference_fasta],
             capture_output=True,
-            text=True,
-            timeout=600  # 10 minute timeout for indexing
+            text=True
         )
         
         if result.returncode != 0:
@@ -136,6 +135,25 @@ def open_fastq(file_path: str, mode: str = 'rt'):
         return gzip.open(file_path, mode)
     else:
         return open(file_path, mode)
+
+def write_fasta_unwrapped(records: List[SeqRecord], path: str) -> None:
+    """
+    Write FASTA with one unbroken sequence line per record, matching the layout
+    of MitoGeneExtractor alignment files.
+
+    SeqIO.write(..., "fasta") hard-wraps at 60 characters, which reflows a 1587
+    column alignment row across 27 lines (26 x 60 + 27). Downstream steps that
+    read these files line-by-line, and any manual inspection of gap columns,
+    expect one line per record.
+
+    record.description holds the full original header text (Biopython stores the
+    whole line after '>' there, ID included), so writing it reproduces the input
+    header verbatim - including characters such as ':' and '+' in read names.
+    """
+    with open(path, 'w') as handle:
+        for record in records:
+            header = record.description if record.description else record.id
+            handle.write(f">{header}\n{str(record.seq)}\n")
 
 def degap_sequences(records: List[SeqRecord]) -> List[SeqRecord]:
     """Remove gap characters from sequences"""
@@ -451,19 +469,18 @@ def process_fasta_file(file_path: str, reference_genome: str, output_dir: str,
             
             removed_count = len(removed_records)
             
-            # Write filtered sequences (with original gaps/alignment)
+            # Write filtered sequences (with original gaps/alignment), one
+            # unbroken sequence line per record to match the input layout.
             output_file = None
             if kept_records:
                 output_file = os.path.join(output_dir, f"{base_name}_human_filtered.fasta")
-                with open(output_file, 'w') as handle:
-                    SeqIO.write(kept_records, handle, "fasta")
-            
-            # Write removed sequences if requested
+                write_fasta_unwrapped(kept_records, output_file)
+
+            # Write removed sequences if requested, same unwrapped layout
             removed_file = None
             if save_removed and removed_records and removed_dir:
                 removed_file = os.path.join(removed_dir, f"{base_name}_removed.fasta")
-                with open(removed_file, 'w') as handle:
-                    SeqIO.write(removed_records, handle, "fasta")
+                write_fasta_unwrapped(removed_records, removed_file)
             
             return {
                 'file_path': file_path,
