@@ -42,7 +42,7 @@ class TestConfigs:
     def test_all_scripts_bundled(self):
         scripts_dir = get_package_dir() / "workflow" / "scripts"
         expected = [
-            "01_human_cox1_filter.py",
+            "01_human_mitogenome_filter.py",
             "02_at_content_filter.py",
             "03_statistical_outlier_filter.py",
             "04_reference_filter.py",

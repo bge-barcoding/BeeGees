@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+- Replaced `01_human_cox1_filter.py` with `01_human_mitogenome_filter.py`, which
+  removes human contamination by mapping reads to a human reference with
+  `bwa aln` instead of comparing them positionally against a hardcoded COX1
+  sequence. The old filter compared `read[:n]` against `HUMAN_COX1[:n]` with both
+  anchored at index 0 and no alignment, so only a read beginning at exactly COX1
+  base 1 could ever be removed: `cleaning_removed_human` was 0 on every sample.
+  Measured on a heavily contaminated sample, the replacement removes 99% of human
+  reads while keeping every target read.
+- Added `fasta_cleaner.human_reference` to set the mapping reference. `null` uses
+  the packaged human mitogenome, which catches mitochondrial contamination only;
+  point it at a mitogenome + NUMT FASTA to also remove reads derived from nuclear
+  mitochondrial insertions, which are otherwise the dominant survivors.
+  `fasta_cleaner.human_threshold` is removed - mapping has no similarity
+  threshold.
+- Added the `bwa_index_human_ref` rule, which indexes the human reference once per
+  run and is shared by the merge, concat and se filter rules. Indexing previously
+  happened inside the filter script, which would have re-indexed per invocation
+  and let concurrent mode jobs race to write the same index files. The index is
+  written to `resources/bwa_index/` in the working directory via `bwa index -p`,
+  never beside the reference, which is read-only in a pip-installed package. It
+  is removed at the end of the run; set `keep_bwa_index: true` when using a
+  genome-scale reference.
+- Renamed the `human_cox1_filter` rules and the `rules.human_cox1_filter` resource
+  key to `human_mitogenome_filter`. Output paths, file names and metric names are
+  unchanged.
+
 ## v3.0.6 (2026-09-02)
 - The bioconda recipe was missing `bbmap` (`reformat.sh`, used by the
   optional downsampling rules), `samtools`, `wget` (`download_taxdump`) and

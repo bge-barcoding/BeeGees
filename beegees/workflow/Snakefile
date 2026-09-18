@@ -313,7 +313,7 @@ t = _br["t"]
 # Fasta cleaner configuration
 fasta_cleaner_params = config.get("fasta_cleaner", {
     "consensus_threshold": 0.5,
-    "human_threshold": 0.95,
+    "human_reference": None,
     "at_difference": 0.1,
     "at_mode": "absolute",
     "outlier_percentile": 90.0
@@ -373,6 +373,35 @@ if run_mode == "SE":
 # writable location (site-packages is read-only). Override via taxdump_dir in
 # config.yaml when a shared/pre-downloaded dump is preferred.
 taxdump_dir = config.get("taxdump_dir", os.path.join(os.getcwd(), "resources", "ncbi_taxdump"))
+
+
+# ===== HUMAN CONTAMINATION REFERENCE =====
+# fasta_cleaner.human_reference points at the FASTA that reads are mapped against
+# in 01_human_mitogenome_filter.py. It defaults to the packaged human mitogenome,
+# which catches mitochondrial contamination only: a mitogenome-only reference
+# leaves NUMT-derived reads behind (measured: 85% of human reads removed, versus
+# 99% for a mitogenome + NUMT reference). Point it at a combined mitogenome+NUMT
+# FASTA for full coverage.
+human_reference = fasta_cleaner_params.get("human_reference") or os.path.join(
+    workflow.basedir, "..", "resources/contaminants/human_mitogenome.fasta")
+
+if not os.path.exists(human_reference):
+    sys.exit(
+        f"ERROR: Human contamination reference not found: '{human_reference}'.\n"
+        f"  Set fasta_cleaner.human_reference in your config to a readable FASTA."
+    )
+
+# The BWA index is written to the working directory, never beside the reference:
+# when BeeGees is installed as a package, resources/ lives in site-packages and is
+# read-only. Same reasoning as taxdump_dir above.
+#
+# `bwa index -p` lets the index live apart from the FASTA. Nothing needs to copy
+# or symlink the reference, because bwa aln/samse/mem read only the five index
+# files and never reopen the FASTA - so human_ref_prefix names no file on disk.
+bwa_index_dir = config.get("bwa_index_dir", os.path.join(os.getcwd(), "resources", "bwa_index"))
+human_ref_prefix = os.path.join(bwa_index_dir, "human_reference")
+BWA_INDEX_EXT = [".amb", ".ann", ".bwt", ".pac", ".sa"]
+human_index_files = [human_ref_prefix + ext for ext in BWA_INDEX_EXT]
 
 
 # ===== DIRECTORY STRUCTURE SETUP =====
@@ -1807,38 +1836,76 @@ rule create_alignment_log_concat:
         "find {params.alignment_dir} -name '*_align_*.fas' -type f 2>/dev/null | sort > {output.alignment_log} || touch {output.alignment_log}"
                 
 
+# ===== SHARED HUMAN REFERENCE INDEX =====
+# Built once per run and consumed by the human_mitogenome_filter rules for all
+# three modes. Keeping indexing in its own rule, rather than letting the filter
+# script build on demand, means a large reference is indexed once instead of once
+# per sample, and concurrent merge/concat/se jobs cannot race to write the same
+# index files.
+#
+# The outputs are temp() because the default reference is small enough to rebuild
+# in about a second. Set keep_bwa_index: true in config when pointing
+# fasta_cleaner.human_reference at a genome-scale FASTA, where `bwa index` costs
+# an hour or more per gigabase and must not be rebuilt every run.
+rule bwa_index_human_ref:
+    input:
+        fasta=human_reference
+    output:
+        human_index_files if config.get("keep_bwa_index", False) else temp(human_index_files)
+    params:
+        prefix=human_ref_prefix
+    log:
+        os.path.join(bwa_index_dir, "bwa_index.log")
+    threads: 1                                   # bwa index is single-threaded
+    resources:
+        mem_mb=8192
+    retries: 2
+    shell:
+        """
+        set -euo pipefail
+
+        mkdir -p $(dirname {params.prefix})
+
+        bwa index -p {params.prefix} {input.fasta} 2>&1 | tee {log}
+        """
+
+
 # ===== FASTA CLEANER RULES - MERGE MODE =====
 
 # Sequential filtering rules (fasta_cleaner)
-rule human_cox1_filter_merge:
+rule human_mitogenome_filter_merge:
     input:
-        alignment_log=os.path.join(barcode_recovery_dir_merge, "logs/mge/alignment_files.log")
+        alignment_log=os.path.join(barcode_recovery_dir_merge, "logs/mge/alignment_files.log"),
+        human_index=human_index_files
     output:
         filtered_files=os.path.join(barcode_recovery_dir_merge, "fasta_cleaner/01_human_filtered/human_filtered.txt"),
         metrics=os.path.join(barcode_recovery_dir_merge, "fasta_cleaner/01_human_filtered/human_filter_metrics.csv")
     params:
-        script=os.path.join(workflow.basedir, "scripts/01_human_cox1_filter.py"),
+        script=os.path.join(workflow.basedir, "scripts/01_human_mitogenome_filter.py"),
         output_dir=os.path.join(barcode_recovery_dir_merge, "fasta_cleaner/01_human_filtered"),
-        human_threshold=fasta_cleaner_params["human_threshold"]
+        reference=human_ref_prefix
     log:
         os.path.join(barcode_recovery_dir_merge, "logs/fasta_cleaner/01_human_filter.log")
-    threads: rule_resources["human_cox1_filter"]["threads"]
+    threads: rule_resources["human_mitogenome_filter"]["threads"]
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["human_cox1_filter"]["mem_mb"] * attempt
+        mem_mb=lambda wildcards, attempt: rule_resources["human_mitogenome_filter"]["mem_mb"] * attempt
     retries: 2
     shell:
         """
         set -euo pipefail
 
         mkdir -p {params.output_dir}
-        
+
         python {params.script} \\
             --input-log {input.alignment_log} \\
+            --human-genome {params.reference} \\
             --output-dir {params.output_dir} \\
             --filtered-files-list {output.filtered_files} \\
             --metrics-csv {output.metrics} \\
-            --human-threshold {params.human_threshold} \\
+            --aligner bwa-aln \\
             --threads {threads} \\
+            --threads-per-file 1 \\
+            --removed \\
             2>&1 | tee {log}
         """
 
@@ -2089,35 +2156,39 @@ else:
 # ===== FASTA CLEANER RULES - CONCAT MODE =====
 
 # Sequential filtering rules (fasta_cleaner)
-rule human_cox1_filter_concat:
+rule human_mitogenome_filter_concat:
     input:
-        alignment_log=os.path.join(barcode_recovery_dir_concat, "logs/mge/alignment_files.log")
+        alignment_log=os.path.join(barcode_recovery_dir_concat, "logs/mge/alignment_files.log"),
+        human_index=human_index_files
     output:
         filtered_files=os.path.join(barcode_recovery_dir_concat, "fasta_cleaner/01_human_filtered/human_filtered.txt"),
         metrics=os.path.join(barcode_recovery_dir_concat, "fasta_cleaner/01_human_filtered/human_filter_metrics.csv")
     params:
-        script=os.path.join(workflow.basedir, "scripts/01_human_cox1_filter.py"),
+        script=os.path.join(workflow.basedir, "scripts/01_human_mitogenome_filter.py"),
         output_dir=os.path.join(barcode_recovery_dir_concat, "fasta_cleaner/01_human_filtered"),
-        human_threshold=fasta_cleaner_params["human_threshold"]
+        reference=human_ref_prefix
     log:
         os.path.join(barcode_recovery_dir_concat, "logs/fasta_cleaner/01_human_filter.log")
-    threads: rule_resources["human_cox1_filter"]["threads"]
+    threads: rule_resources["human_mitogenome_filter"]["threads"]
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["human_cox1_filter"]["mem_mb"] * attempt
+        mem_mb=lambda wildcards, attempt: rule_resources["human_mitogenome_filter"]["mem_mb"] * attempt
     retries: 2
     shell:
         """
         set -euo pipefail
 
         mkdir -p {params.output_dir}
-        
+
         python {params.script} \\
             --input-log {input.alignment_log} \\
+            --human-genome {params.reference} \\
             --output-dir {params.output_dir} \\
             --filtered-files-list {output.filtered_files} \\
             --metrics-csv {output.metrics} \\
-            --human-threshold {params.human_threshold} \\
+            --aligner bwa-aln \\
             --threads {threads} \\
+            --threads-per-file 1 \\
+            --removed \\
             2>&1 | tee {log}
         """
 
@@ -3457,33 +3528,39 @@ rule create_alignment_log_se:
         "find {params.alignment_dir} -name '*_align_*.fas' -type f 2>/dev/null | sort > {output.alignment_log} || touch {output.alignment_log}"
 
 # ===== FASTA CLEANER RULES - SE MODE =====
-rule human_cox1_filter_se:
+rule human_mitogenome_filter_se:
     input:
-        alignment_log=os.path.join(barcode_recovery_dir_se, "logs/mge/alignment_files.log")
+        alignment_log=os.path.join(barcode_recovery_dir_se, "logs/mge/alignment_files.log"),
+        human_index=human_index_files
     output:
         filtered_files=os.path.join(barcode_recovery_dir_se, "fasta_cleaner/01_human_filtered/human_filtered.txt"),
         metrics=os.path.join(barcode_recovery_dir_se, "fasta_cleaner/01_human_filtered/human_filter_metrics.csv")
     params:
-        script=os.path.join(workflow.basedir, "scripts/01_human_cox1_filter.py"),
+        script=os.path.join(workflow.basedir, "scripts/01_human_mitogenome_filter.py"),
         output_dir=os.path.join(barcode_recovery_dir_se, "fasta_cleaner/01_human_filtered"),
-        human_threshold=fasta_cleaner_params["human_threshold"]
+        reference=human_ref_prefix
     log:
         os.path.join(barcode_recovery_dir_se, "logs/fasta_cleaner/01_human_filter.log")
-    threads: rule_resources["human_cox1_filter"]["threads"]
+    threads: rule_resources["human_mitogenome_filter"]["threads"]
     resources:
-        mem_mb=lambda wildcards, attempt: rule_resources["human_cox1_filter"]["mem_mb"] * attempt
+        mem_mb=lambda wildcards, attempt: rule_resources["human_mitogenome_filter"]["mem_mb"] * attempt
     retries: 2
     shell:
         """
         set -euo pipefail
+
         mkdir -p {params.output_dir}
+
         python {params.script} \\
             --input-log {input.alignment_log} \\
+            --human-genome {params.reference} \\
             --output-dir {params.output_dir} \\
             --filtered-files-list {output.filtered_files} \\
             --metrics-csv {output.metrics} \\
-            --human-threshold {params.human_threshold} \\
+            --aligner bwa-aln \\
             --threads {threads} \\
+            --threads-per-file 1 \\
+            --removed \\
             2>&1 | tee {log}
         """
 

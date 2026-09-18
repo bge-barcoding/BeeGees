@@ -58,11 +58,11 @@ barcode_recovery:
 
 
 ## Post-processing of aligned reads for cleaning (using fasta_cleaner)
-# fasta_cleaner undertakes 6 steps - 1:Human cox1 similarity filtering, 2:AT-content filtering compared to consensus, 3:Statistical outlier filtering compared to consensus, 4:Custom reference-based filtering, 5:Consensus Generation, 6:Metrics aggregation. 
+# fasta_cleaner undertakes 6 steps - 1:Human contamination removal by read mapping, 2:AT-content filtering compared to consensus, 3:Statistical outlier filtering compared to consensus, 4:Custom reference-based filtering, 5:Consensus Generation, 6:Metrics aggregation. 
 # See README.md and docstring of each script (beegees/workflow/scripts) for more detailed parameter information
 fasta_cleaner:
   consensus_threshold: 0.5                       # Threshold at which bases at each position must 'agree' to be incldued in the consensus (0-1)
-  human_threshold: 0.95                          # Threshold at which reads are removed due to similarity with human COI (0-1)
+  human_reference: null                          # FASTA of human sequence that reads are mapped against for contamination removal. null = packaged human mitogenome (NC_012920.1)
   at_difference: 0.1                             # Threshold at which reads are removed due to AT content variation (0-1)
   at_mode: "absolute"                            # At content filtering mode (Absolute/Higher/Lower)
   outlier_percentile: 90.0                       # Threshold at which reads are flagged as statistical outliers to the consensus and removed (0-100)
@@ -97,6 +97,28 @@ taxonomic_validation:
 # Override this when running BeeGees as a pip-installed package or when a
 # pre-downloaded dump should be reused across runs.
 # taxdump_dir: "/path/to/writable/ncbi_taxdump"
+
+
+## Human contamination reference
+# fasta_cleaner.human_reference (above) sets the FASTA that reads are mapped
+# against in fasta_cleaner step 1. Leaving it null uses the packaged human
+# mitogenome, which removes mitochondrial contamination only. Human NUMTs
+# (nuclear copies of mitochondrial DNA) are NOT in the mitogenome, so reads
+# derived from them survive: measured on a heavily contaminated sample, a
+# mitogenome-only reference removed 85% of human reads versus 99% for a
+# mitogenome + NUMT reference. Point human_reference at a combined
+# mitogenome+NUMT FASTA for full coverage.
+#
+# The BWA index is built once per run by the bwa_index_human_ref rule and written
+# to resources/bwa_index/ in your working directory (never beside the reference,
+# which is read-only in a pip-installed package). It is deleted at the end of the
+# run because a small reference re-indexes in about a second. Set the following
+# to true when using a genome-scale reference, where `bwa index` takes an hour or
+# more per gigabase and should be kept between runs.
+# keep_bwa_index: false
+#
+# Override where the index is written:
+# bwa_index_dir: "/path/to/writable/bwa_index"
 
 
 ## Resource allocation for each rule
@@ -144,9 +166,9 @@ rules:
     threads: 4                                   # rename_headers.py --threads. >4 is likely to have dimishing speed returns
   gzip_merged_clean:                             # Gzip *_merged_clean.fastq files to reclaim disk space
     mem_mb: 2048                                 # Flat memory requirement regardless of sample number
-  human_cox1_filter:                             # 01_human_cox1_filter.py: remove human COX1 contamination
-    mem_mb: 8192                                 # Process pool over per-sample alignments: peak is [threads] x [largest alignment], so it tracks read depth, NOT sample count
-    threads: 4
+  human_mitogenome_filter:                       # 01_human_mitogenome_filter.py: remove human contamination by mapping reads to a human reference
+    mem_mb: 8192                                 # Process pool over per-sample alignments: peak is [threads] x [largest alignment] plus the BWA index, so it tracks read depth and reference size, NOT sample count
+    threads: 4                                   # Alignment files processed in parallel (one bwa thread each)
   at_content_filter:                             # 02_at_content_filter.py: remove reads with aberrant AT content
     mem_mb: 8192                                 # As above: [threads] x [largest alignment]
     threads: 4
