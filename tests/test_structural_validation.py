@@ -221,3 +221,194 @@ class TestRunNhmmerOnSequence:
 
         assert result is None
         assert "nhmmer not found in PATH" not in caplog.text
+
+
+# nhmmer --tblout column order:
+#   target acc query acc hmmfrom hmmto alifrom alito envfrom envto sqlen strand E score bias desc
+def _tblout_row(seq_id, hmm_from, hmm_to, seq_from, seq_to, evalue, score=100.0, bias=10.0):
+    return (f"{seq_id} - COI-5P - {hmm_from} {hmm_to} {seq_from} {seq_to} "
+            f"{seq_from} {seq_to} 1587 + {evalue} {score} {bias} -")
+
+
+def _tblout(seq_id, *rows):
+    return "\n".join(["# target name  accession  query name", "#"] + list(rows))
+
+
+class TestParseNhmmerResultEnvelopes:
+    """nhmmer reports one envelope per contiguous match. Keeping only the best
+    one truncated barcodes to whichever fragment scored highest - on UK016-H10 a
+    299-column envelope at E=6.1e-63 was silently dropped in favour of a
+    291-column one at E=3.9e-73, yielding 290 bases from a consensus with a
+    900-base unambiguous stretch."""
+
+    SEQ = "UK016-H10_r_1.5_s_50_fcleaner_concat"
+
+    def test_real_h10_case_keeps_both_envelopes(self):
+        content = _tblout(
+            self.SEQ,
+            _tblout_row(self.SEQ, 367, 657, 462, 752, "3.9e-73", 235.2, 38.6),
+            _tblout_row(self.SEQ, 2, 300, 97, 395, "6.1e-63", 201.6, 29.2),
+            _tblout_row(self.SEQ, 444, 461, 52, 69, "3.5", -7.0, 6.7),
+        )
+        result = struct_val.parse_nhmmer_result(content, self.SEQ)
+
+        # Sorted by hmm_from, and the E=3.5 row is excluded as insignificant.
+        assert [(e["hmm_from"], e["hmm_to"]) for e in result] == [(2, 300), (367, 657)]
+
+    def test_single_envelope_returned_as_list(self):
+        content = _tblout(self.SEQ, _tblout_row(self.SEQ, 119, 657, 214, 752, "8.8e-124"))
+        result = struct_val.parse_nhmmer_result(content, self.SEQ)
+
+        assert len(result) == 1
+        assert (result[0]["hmm_from"], result[0]["hmm_to"]) == (119, 657)
+
+    def test_no_significant_envelope_returns_none(self):
+        """None, not [] - run_nhmmer_on_sequence hands this to callers testing `is None`."""
+        content = _tblout(self.SEQ, _tblout_row(self.SEQ, 444, 461, 52, 69, "3.5"))
+        assert struct_val.parse_nhmmer_result(content, self.SEQ) is None
+
+    def test_empty_content_returns_none(self):
+        assert struct_val.parse_nhmmer_result("", self.SEQ) is None
+
+    def test_name_mismatch_excluded(self):
+        content = _tblout(self.SEQ, _tblout_row("SOME_OTHER_SEQ", 2, 300, 97, 395, "1e-50"))
+        assert struct_val.parse_nhmmer_result(content, self.SEQ) is None
+
+    def test_hmm_overlap_keeps_only_best(self):
+        content = _tblout(
+            self.SEQ,
+            _tblout_row(self.SEQ, 100, 400, 100, 400, "1e-90"),
+            _tblout_row(self.SEQ, 350, 657, 800, 1107, "1e-50"),  # HMM overlaps 350-400
+        )
+        result = struct_val.parse_nhmmer_result(content, self.SEQ)
+
+        assert [(e["hmm_from"], e["hmm_to"]) for e in result] == [(100, 400)]
+
+    def test_sequence_overlap_keeps_only_best(self):
+        """Disjoint in HMM space but sharing query bases: merging would place the
+        same bases at two model positions."""
+        content = _tblout(
+            self.SEQ,
+            _tblout_row(self.SEQ, 2, 300, 100, 398, "1e-90"),
+            _tblout_row(self.SEQ, 367, 657, 350, 640, "1e-50"),  # Seq overlaps 350-398
+        )
+        result = struct_val.parse_nhmmer_result(content, self.SEQ)
+
+        assert [(e["hmm_from"], e["hmm_to"]) for e in result] == [(2, 300)]
+
+    def test_best_envelope_always_survives(self):
+        """Greedy best-first: the envelope that won under the old best-only logic
+        is kept whatever else is present, so a barcode can never get shorter."""
+        content = _tblout(
+            self.SEQ,
+            _tblout_row(self.SEQ, 300, 400, 300, 400, "1e-99"),
+            _tblout_row(self.SEQ, 250, 350, 250, 350, "1e-98"),
+            _tblout_row(self.SEQ, 350, 450, 350, 450, "1e-97"),
+        )
+        result = struct_val.parse_nhmmer_result(content, self.SEQ)
+
+        assert [(e["hmm_from"], e["hmm_to"]) for e in result] == [(300, 400)]
+
+    def test_three_disjoint_envelopes_all_kept_and_sorted(self):
+        content = _tblout(
+            self.SEQ,
+            _tblout_row(self.SEQ, 400, 500, 400, 500, "1e-70"),
+            _tblout_row(self.SEQ, 2, 100, 2, 100, "1e-90"),
+            _tblout_row(self.SEQ, 200, 300, 200, 300, "1e-80"),
+        )
+        result = struct_val.parse_nhmmer_result(content, self.SEQ)
+
+        assert [(e["hmm_from"], e["hmm_to"]) for e in result] == [(2, 100), (200, 300), (400, 500)]
+
+    def test_discarded_overlap_is_logged(self, caplog):
+        """The old code dropped significant envelopes with no log line at all."""
+        content = _tblout(
+            self.SEQ,
+            _tblout_row(self.SEQ, 100, 400, 100, 400, "1e-90"),
+            _tblout_row(self.SEQ, 350, 657, 800, 1107, "1e-50"),
+        )
+        with caplog.at_level("INFO"):
+            struct_val.parse_nhmmer_result(content, self.SEQ)
+
+        assert "Discarded envelope" in caplog.text
+        assert "overlaps accepted envelope" in caplog.text
+
+
+class TestEnvelopesOverlap:
+    @staticmethod
+    def _env(hmm_from, hmm_to, seq_from, seq_to):
+        return {"hmm_from": hmm_from, "hmm_to": hmm_to,
+                "seq_from": seq_from, "seq_to": seq_to}
+
+    def test_disjoint_in_both(self):
+        overlaps, _ = struct_val.envelopes_overlap(
+            self._env(2, 300, 97, 395), self._env(367, 657, 462, 752))
+        assert overlaps is False
+
+    def test_hmm_only(self):
+        overlaps, where = struct_val.envelopes_overlap(
+            self._env(2, 400, 97, 495), self._env(367, 657, 900, 1190))
+        assert overlaps is True
+        assert where == "HMM"
+
+    def test_sequence_only(self):
+        overlaps, where = struct_val.envelopes_overlap(
+            self._env(2, 300, 97, 500), self._env(367, 657, 400, 690))
+        assert overlaps is True
+        assert where == "sequence"
+
+    def test_adjacent_ranges_do_not_overlap(self):
+        """Inclusive coordinates: 1-300 and 301-600 touch but do not share a position."""
+        overlaps, _ = struct_val.envelopes_overlap(
+            self._env(1, 300, 1, 300), self._env(301, 600, 301, 600))
+        assert overlaps is False
+
+    def test_single_shared_position_overlaps(self):
+        overlaps, _ = struct_val.envelopes_overlap(
+            self._env(1, 300, 1, 300), self._env(300, 600, 900, 1200))
+        assert overlaps is True
+
+    def test_minus_strand_coordinates_normalised(self):
+        """nhmmer reports minus-strand hits with seq_from > seq_to."""
+        overlaps, where = struct_val.envelopes_overlap(
+            self._env(2, 300, 500, 100), self._env(367, 657, 400, 690))
+        assert overlaps is True
+        assert where == "sequence"
+
+
+class TestConstructHmmSpaceMultipleEnvelopes:
+    @staticmethod
+    def _env(hmm_from, hmm_to, seq_from, seq_to):
+        return {"target_name": "SEQ1", "hmm_from": hmm_from, "hmm_to": hmm_to,
+                "seq_from": seq_from, "seq_to": seq_to}
+
+    def test_two_envelopes_both_placed_with_gap_between(self):
+        seq = "A" * 10 + "C" * 10          # positions 1-10 A, 11-20 C
+        result = struct_val.construct_hmm_space_from_alignment(
+            [self._env(1, 10, 1, 10), self._env(21, 30, 11, 20)], seq, 30)
+
+        assert result == "A" * 10 + "-" * 10 + "C" * 10
+
+    def test_single_dict_still_accepted(self):
+        result = struct_val.construct_hmm_space_from_alignment(
+            self._env(1, 5, 1, 5), "ACGTA", 10)
+        assert result == "ACGTA" + "-" * 5
+
+    def test_envelope_order_does_not_matter(self):
+        seq = "A" * 10 + "C" * 10
+        forward = struct_val.construct_hmm_space_from_alignment(
+            [self._env(1, 10, 1, 10), self._env(21, 30, 11, 20)], seq, 30)
+        reversed_order = struct_val.construct_hmm_space_from_alignment(
+            [self._env(21, 30, 11, 20), self._env(1, 10, 1, 10)], seq, 30)
+        assert forward == reversed_order
+
+    def test_h10_barcode_spans_both_envelopes_end_to_end(self):
+        """Regression for the 290-base truncation: HMM 2-300 + 367-657 must give
+        a 656-position barcode with 590 real bases, not 290."""
+        envelopes = [self._env(2, 300, 97, 395), self._env(367, 657, 462, 752)]
+        hmm_space = struct_val.construct_hmm_space_from_alignment(envelopes, "A" * 1587, 657)
+        barcode = struct_val.trim_sequence_ends(struct_val.replace_gaps_with_n(hmm_space))
+
+        assert len(barcode) == 656
+        assert barcode.count("N") == 66                      # HMM 301-366 unfilled
+        assert struct_val.calculate_barcode_base_count(barcode) == 590

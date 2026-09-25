@@ -1,6 +1,28 @@
 # Changelog
 
 ## Unreleased
+- `structural_validation.py` now builds the barcode from every significant,
+  non-overlapping nhmmer envelope instead of only the lowest-E-value one.
+  nhmmer reports one envelope per contiguous stretch matching the profile, so a
+  consensus with a low-coverage hole in the middle comes back as two envelopes.
+  `parse_nhmmer_result()` kept one and dropped the rest with no log line at all,
+  truncating the barcode to whichever fragment happened to score best. On
+  UK016-H10 a 299-column envelope at E=6.1e-63 lost to a 291-column one at
+  E=3.9e-73, returning 290 bases from a consensus with a 900-base unambiguous
+  stretch; eight rows for that sample reported exactly 290 bases. Barcode
+  selection was therefore driven by how nhmmer happened to fragment the match
+  rather than by sequence quality.
+  Envelopes are now accepted greedily in E-value order, and only where they
+  overlap nothing already accepted in *both* HMM and sequence coordinates -
+  sequence-coordinate overlap would place the same bases at two model positions.
+  Because the best envelope is always accepted first, no barcode can come out
+  shorter than before. The span between envelopes is filled with N, so it counts
+  against `barcode_base_count` and cannot be mistaken for called sequence, and
+  the reading frame is preserved across it because HMM positions are profile
+  columns. Envelopes discarded for overlap are now logged, naming the envelope
+  they clashed with.
+  This changes `barcode_length`, `barcode_base_count` and `barcode_rank` for any
+  sample whose match was fragmented, which can change which barcode is selected.
 - Replaced `01_human_cox1_filter.py` with `01_human_mitogenome_filter.py`, which
   removes human contamination by mapping reads to a human reference with
   `bwa aln` instead of comparing them positionally against a hardcoded COX1
