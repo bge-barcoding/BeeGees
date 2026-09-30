@@ -427,6 +427,26 @@ def envelopes_overlap(first, second):
     return False, ''
 
 
+def gap_to_span(envelope, span_lo, span_hi):
+    """
+    Model positions that would become N if `envelope` were merged into the span
+    already accepted.
+
+    An envelope extending the barcode leftwards or rightwards drags in every
+    model position between itself and the existing span, and those positions have
+    no data, so they are filled with N. An envelope sitting INSIDE the span
+    (overlapping nothing, because overlaps are rejected before this point) fills a
+    hole that is already N, so it costs nothing and the gap is 0.
+
+    Coordinates are 1-based inclusive, so abutting ranges give a gap of 0.
+    """
+    if envelope['hmm_to'] < span_lo:
+        return span_lo - envelope['hmm_to'] - 1
+    if envelope['hmm_from'] > span_hi:
+        return envelope['hmm_from'] - span_hi - 1
+    return 0
+
+
 def parse_nhmmer_result(tabular_content, seq_id):
     """
     Return every significant, mutually non-overlapping envelope for seq_id.
@@ -440,10 +460,23 @@ def parse_nhmmer_result(tabular_content, seq_id):
     unambiguous stretch, because a 299-column envelope at E=6.1e-63 lost to a
     291-column one at E=3.9e-73.
 
-    Selection is greedy, best E-value first, so the envelope that would have won
-    under the old single-slot logic is always kept and further envelopes are
-    added only where they clash with nothing already accepted. The barcode can
-    therefore never cover less of the model than it did before.
+    Selection is greedy, best E-value first. The best-scoring envelope is always
+    the anchor, so the barcode can never cover less of the model than it did
+    before. A further envelope is merged only when it
+
+      1. overlaps nothing already accepted, in either coordinate system, and
+      2. spans more model positions than the gap it would open (the "net gain"
+         test) - because that gap has no data and is filled with N.
+
+    Test 2 exists because a barcode is judged on called bases, not on length.
+    UK016-C08 supplied the counter-example: a 49-position envelope at E=3.6e-06
+    sitting 182 positions from the real barcode added 48 informative bases and
+    183 N, taking the sequence from 5% ambiguous (passing) to 33% (failing).
+    Envelope score and bias cannot substitute for this test: both describe an
+    envelope in isolation and are blind to where it sits relative to the rest of
+    the barcode, which is what sets the N cost. Measured over 430 secondary
+    envelopes, the best single score threshold reproduces this rule on 77% of
+    them and the best bias/score threshold on 68%.
 
     Returns:
         A list of envelope dicts sorted by hmm_from, or None when nothing passes
@@ -506,10 +539,23 @@ def parse_nhmmer_result(tabular_content, seq_id):
         logging.debug(f"=== NO SIGNIFICANT ALIGNMENT FOUND for {seq_id} ===")
         return None
 
-    # Greedy, best E-value first. The first envelope is always accepted, so this
-    # is never worse than the previous best-only behaviour.
+    # Greedy, best E-value first. The first envelope is always the anchor, so this
+    # can never cover less of the model than the previous best-only behaviour.
     accepted = []
+    span_lo = span_hi = None
+
     for envelope in sorted(candidates, key=lambda e: e['evalue']):
+        if not accepted:
+            accepted.append(envelope)
+            span_lo, span_hi = envelope['hmm_from'], envelope['hmm_to']
+            logging.info(
+                f"Accepted envelope 1 for {seq_id}: "
+                f"HMM {envelope['hmm_from']}-{envelope['hmm_to']}, "
+                f"Seq {envelope['seq_from']}-{envelope['seq_to']}, "
+                f"E-value={envelope['evalue']} (anchor, best E-value)"
+            )
+            continue
+
         clash = None
         for kept in accepted:
             overlaps, where = envelopes_overlap(envelope, kept)
@@ -517,19 +563,34 @@ def parse_nhmmer_result(tabular_content, seq_id):
                 clash = (kept, where)
                 break
 
-        if clash is None:
-            accepted.append(envelope)
-            logging.info(
-                f"Accepted envelope {len(accepted)} for {seq_id}: "
-                f"HMM {envelope['hmm_from']}-{envelope['hmm_to']}, "
-                f"Seq {envelope['seq_from']}-{envelope['seq_to']}, E-value={envelope['evalue']}"
-            )
-        else:
+        if clash is not None:
             kept, where = clash
             logging.info(
                 f"Discarded envelope for {seq_id}: HMM {envelope['hmm_from']}-{envelope['hmm_to']} "
                 f"(E-value={envelope['evalue']}) overlaps accepted envelope "
                 f"HMM {kept['hmm_from']}-{kept['hmm_to']} in {where} coordinates"
+            )
+            continue
+
+        length = envelope['hmm_to'] - envelope['hmm_from'] + 1
+        gap = gap_to_span(envelope, span_lo, span_hi)
+
+        if length > gap:
+            accepted.append(envelope)
+            span_lo = min(span_lo, envelope['hmm_from'])
+            span_hi = max(span_hi, envelope['hmm_to'])
+            logging.info(
+                f"Accepted envelope {len(accepted)} for {seq_id}: "
+                f"HMM {envelope['hmm_from']}-{envelope['hmm_to']}, "
+                f"Seq {envelope['seq_from']}-{envelope['seq_to']}, "
+                f"E-value={envelope['evalue']} "
+                f"(span {length} > gap {gap}, net gain +{length - gap} model positions)"
+            )
+        else:
+            logging.info(
+                f"Discarded envelope for {seq_id}: HMM {envelope['hmm_from']}-{envelope['hmm_to']} "
+                f"(E-value={envelope['evalue']}) spans {length} model positions but would open a "
+                f"gap of {gap} (net loss {gap - length}); merging would add more ambiguity than sequence"
             )
 
     accepted.sort(key=lambda e: e['hmm_from'])

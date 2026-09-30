@@ -412,3 +412,145 @@ class TestConstructHmmSpaceMultipleEnvelopes:
         assert len(barcode) == 656
         assert barcode.count("N") == 66                      # HMM 301-366 unfilled
         assert struct_val.calculate_barcode_base_count(barcode) == 590
+
+
+class TestGapToSpan:
+    @staticmethod
+    def _env(hmm_from, hmm_to):
+        return {"hmm_from": hmm_from, "hmm_to": hmm_to}
+
+    def test_envelope_left_of_span(self):
+        # C08: anchor 233-619, candidate 2-50 -> 233 - 50 - 1
+        assert struct_val.gap_to_span(self._env(2, 50), 233, 619) == 182
+
+    def test_envelope_right_of_span(self):
+        assert struct_val.gap_to_span(self._env(400, 500), 100, 300) == 99
+
+    def test_abutting_ranges_have_zero_gap(self):
+        assert struct_val.gap_to_span(self._env(301, 400), 100, 300) == 0
+
+    def test_interior_envelope_is_free(self):
+        """An envelope inside the accepted span fills existing N, so it costs nothing."""
+        assert struct_val.gap_to_span(self._env(200, 250), 100, 500) == 0
+
+
+class TestNetGainRule:
+    """An extra envelope is merged only if it spans more model positions than the
+    gap it opens. The gap has no data and becomes N, so a small distant envelope
+    adds more ambiguity than sequence - which is what cost UK016-C08 its barcode."""
+
+    SEQ = "SEQ1"
+
+    def _parse(self, *rows):
+        return struct_val.parse_nhmmer_result(_tblout(self.SEQ, *rows), self.SEQ)
+
+    def test_c08_small_distant_envelope_rejected(self):
+        """Real case: 49 positions, 182 away. +48 bases for +183 N took the
+        barcode from 5% ambiguous (passing) to 33% (failing)."""
+        result = self._parse(
+            _tblout_row(self.SEQ, 233, 619, 274, 660, "2e-83", 269.1, 28.6),
+            _tblout_row(self.SEQ, 2, 50, 43, 91, "3.6e-06", 14.3, 3.4),
+        )
+        assert [(e["hmm_from"], e["hmm_to"]) for e in result] == [(233, 619)]
+
+    def test_g07_large_envelope_small_gap_accepted(self):
+        """Real case: 316 positions, gap 54. This is the split the envelope fix exists for."""
+        result = self._parse(
+            _tblout_row(self.SEQ, 373, 657, 462, 746, "4.5e-73", 235.0, 37.5),
+            _tblout_row(self.SEQ, 3, 318, 92, 407, "3.7e-61", 195.7, 39.1),
+        )
+        assert [(e["hmm_from"], e["hmm_to"]) for e in result] == [(3, 318), (373, 657)]
+
+    def test_e11_accepted(self):
+        """Real case: 267 positions, gap 97."""
+        result = self._parse(
+            _tblout_row(self.SEQ, 2, 263, 91, 352, "1.4e-67", 216.9, 33.1),
+            _tblout_row(self.SEQ, 361, 627, 450, 716, "2.6e-48", 153.3, 20.9),
+        )
+        assert [(e["hmm_from"], e["hmm_to"]) for e in result] == [(2, 263), (361, 627)]
+
+    def test_h10_both_cases_accepted(self):
+        """Real cases: 299 positions vs gap 66, and 142 vs gap 106."""
+        wide = self._parse(
+            _tblout_row(self.SEQ, 367, 657, 462, 752, "3.9e-73", 235.2, 38.6),
+            _tblout_row(self.SEQ, 2, 300, 97, 395, "6.1e-63", 201.6, 29.2),
+        )
+        assert [(e["hmm_from"], e["hmm_to"]) for e in wide] == [(2, 300), (367, 657)]
+
+        narrow = self._parse(
+            _tblout_row(self.SEQ, 367, 657, 462, 752, "7e-73", 234.4, 39.3),
+            _tblout_row(self.SEQ, 119, 260, 214, 354, "2.9e-35", 110.3, 18.6),
+        )
+        assert [(e["hmm_from"], e["hmm_to"]) for e in narrow] == [(119, 260), (367, 657)]
+
+    def test_equal_span_and_gap_rejected(self):
+        """Strictly greater: breaking even is not worth the ambiguity."""
+        # candidate 1-100 (100 positions), anchor 201-500 -> gap = 201 - 100 - 1 = 100
+        result = self._parse(
+            _tblout_row(self.SEQ, 201, 500, 201, 500, "1e-90"),
+            _tblout_row(self.SEQ, 1, 100, 1, 100, "1e-50"),
+        )
+        assert [(e["hmm_from"], e["hmm_to"]) for e in result] == [(201, 500)]
+
+    def test_one_position_better_than_gap_accepted(self):
+        # candidate 1-101 (101 positions), anchor 201-500 -> gap 99
+        result = self._parse(
+            _tblout_row(self.SEQ, 201, 500, 201, 500, "1e-90"),
+            _tblout_row(self.SEQ, 1, 101, 1, 101, "1e-50"),
+        )
+        assert [(e["hmm_from"], e["hmm_to"]) for e in result] == [(1, 101), (201, 500)]
+
+    def test_rejecting_one_envelope_does_not_widen_the_span(self):
+        """A rejected envelope must not extend the span, or a later candidate
+        would be measured against a gap that was never opened."""
+        result = self._parse(
+            _tblout_row(self.SEQ, 2, 100, 2, 100, "1e-90"),
+            _tblout_row(self.SEQ, 400, 500, 400, 500, "1e-80"),   # 101 vs gap 299 -> reject
+            _tblout_row(self.SEQ, 200, 210, 200, 210, "1e-20"),   # 11 vs gap 99 -> reject
+        )
+        # If 400-500 had widened the span, 200-210 would have looked interior (free).
+        assert [(e["hmm_from"], e["hmm_to"]) for e in result] == [(2, 100)]
+
+    def test_interior_envelope_free_when_span_already_wide(self):
+        result = self._parse(
+            _tblout_row(self.SEQ, 2, 300, 2, 300, "1e-90"),
+            _tblout_row(self.SEQ, 380, 657, 380, 657, "1e-80"),   # 278 > gap 79 -> accept
+            _tblout_row(self.SEQ, 320, 330, 320, 330, "1e-05"),   # 11 positions, interior -> free
+        )
+        assert [(e["hmm_from"], e["hmm_to"]) for e in result] == [(2, 300), (320, 330), (380, 657)]
+
+    def test_anchor_is_always_kept(self):
+        """Whatever else happens, the best-E-value envelope survives, so a barcode
+        can never come out shorter than the pre-fix single-envelope behaviour."""
+        result = self._parse(
+            _tblout_row(self.SEQ, 300, 400, 300, 400, "1e-99"),
+            _tblout_row(self.SEQ, 1, 20, 1, 20, "1e-40"),
+            _tblout_row(self.SEQ, 600, 620, 600, 620, "1e-30"),
+        )
+        assert [(e["hmm_from"], e["hmm_to"]) for e in result] == [(300, 400)]
+
+    def test_net_loss_is_logged_with_the_comparison(self, caplog):
+        with caplog.at_level("INFO"):
+            self._parse(
+                _tblout_row(self.SEQ, 233, 619, 274, 660, "2e-83"),
+                _tblout_row(self.SEQ, 2, 50, 43, 91, "3.6e-06"),
+            )
+        assert "spans 49 model positions but would open a gap of 182" in caplog.text
+        assert "net loss 133" in caplog.text
+
+    def test_net_gain_is_logged_with_the_comparison(self, caplog):
+        with caplog.at_level("INFO"):
+            self._parse(
+                _tblout_row(self.SEQ, 373, 657, 462, 746, "4.5e-73"),
+                _tblout_row(self.SEQ, 3, 318, 92, 407, "3.7e-61"),
+            )
+        assert "span 316 > gap 54" in caplog.text
+        assert "net gain +262 model positions" in caplog.text
+
+    def test_overlap_still_takes_precedence(self):
+        """Overlap is rejected before the net-gain test is reached."""
+        result = self._parse(
+            _tblout_row(self.SEQ, 100, 400, 100, 400, "1e-90"),
+            _tblout_row(self.SEQ, 350, 657, 800, 1107, "1e-50"),
+        )
+        assert [(e["hmm_from"], e["hmm_to"]) for e in result] == [(100, 400)]
