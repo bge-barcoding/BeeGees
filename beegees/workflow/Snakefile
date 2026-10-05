@@ -350,7 +350,7 @@ taxdump_dir = config.get("taxdump_dir", os.path.join(os.getcwd(), "resources", "
 # in 01_human_mitogenome_filter.py. It defaults to the packaged human mitogenome,
 # including MANUDB NUMTs
 human_reference = fasta_cleaner_params.get("human_reference") or os.path.join(
-    workflow.basedir, "..", "resources/contaminants/human_mitogenome.fasta")
+    workflow.basedir, "..", "resources/contaminants/human_reference.fasta")
 
 if not os.path.exists(human_reference):
     sys.exit(
