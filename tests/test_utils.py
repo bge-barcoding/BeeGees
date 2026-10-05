@@ -37,7 +37,7 @@ class TestConfigs:
 
     def test_bundled_contaminants_present(self):
         pkg = get_package_dir()
-        assert (pkg / "resources" / "contaminants" / "human_mitogenome.fasta").exists()
+        assert (pkg / "resources" / "contaminants" / "human_reference.fasta").exists()
 
     def test_all_scripts_bundled(self):
         scripts_dir = get_package_dir() / "workflow" / "scripts"

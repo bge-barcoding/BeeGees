@@ -141,7 +141,7 @@ beegees run --config config/config.yaml --profile local --log-file beegees.log
 3. **Barcode recovery** - protein reference-guided extraction of barcode sequences from preprocessed reads using MitoGeneExtractor, producing initial consensus sequences.
 4. **Consensus preparation** - header standardisation and concatenation of raw consensus sequences into multi-FASTA.
 5. **Consensus cleaning and filtering (`fasta_cleaner`)** - sequential filters applied to MGE read alignments to remove contaminants and outliers before generating cleaned consensus sequences:
-   - Human contamination removal, common in museum specimens, by mapping reads to a human reference with `bwa aln` ([`01_human_mitogenome_filter.py`](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/01_human_mitogenome_filter.py))
+   - Human contamination removal, common in museum specimens, by mapping reads to a human reference with `bwa aln` ([`01_human_mitogenome_filter.py`](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/01_human_mitogenome_filter.py)). The packaged reference is the human mitogenome plus human NUMTs
    - AT content filtering, targeting suspected fungal/bacterial contamination ([`02_at_content_filter.py`](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/02_at_content_filter.py))
    - Statistical outlier removal of reads dissimilar to the initial consensus ([`03_statistical_outlier_filter.py`](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/03_statistical_outlier_filter.py))
    - Optional custom reference-based filtering ([`04_reference_filter.py`](https://github.com/bge-barcoding/BeeGees/blob/main/workflow/scripts/04_reference_filter.py))
@@ -283,7 +283,7 @@ t: Consensus threshold (e.g. 0.5 = 50%) (default: 0.5)
 **fasta_cleaner** - applied in order: (01) human contamination → (02) AT content → (03) statistical outlier → (04, optional) reference-based → (05) cleaned consensus generation → (06) metrics aggregation
 ```
 consensus_threshold: Proportion of bases at each position that must agree to be included in the consensus (e.g. 0.5 = ≥50%)
-human_reference: FASTA of human sequence that reads are mapped against for contamination removal. null uses the packaged human mitogenome (NC_012920.1), which removes mitochondrial contamination only; point this at a mitogenome + NUMT FASTA to also catch reads from nuclear mitochondrial insertions
+human_reference: FASTA of human sequence that reads are mapped against for contamination removal. null uses the packaged human reference (the human mitogenome NC_012920.1 plus human NUMTs from MANUDB), which removes both mitochondrial and NUMT-derived (nuclear mitochondrial insertion) contamination
 at_difference: AT content deviation from the consensus above which reads are removed (e.g. 0.1 = 10%)
 at_mode: Absolute (remove if AT content differs by more than the threshold in either direction), Higher (remove only above threshold), or Lower (remove only below threshold)
 outlier_percentile: Similarity to the consensus below which reads are flagged as statistical outliers and removed (e.g. 90.0)
