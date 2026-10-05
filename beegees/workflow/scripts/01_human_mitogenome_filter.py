@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """
-Human Mitogenome Mapping Filter
+Human Mapping Filter
 
 Removes sequences that map to the human mitochondrial/nuclear genome using
-minimap2, bwa-mem, or bwa-aln. Replaces the positional-similarity approach of
-01_human_cox1_filter.py, which could only ever remove a read starting at exactly
-COX1 base 1 and so reported zero removals on every sample.
+minimap2, bwa-mem, or bwa-aln.
 
 The BWA index is NOT built here. The workflow builds it once in the
 `bwa_index_human_ref` Snakemake rule, shared by the merge/concat/se filter rules,
