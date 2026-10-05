@@ -92,26 +92,14 @@ taxonomic_validation:
 
 
 ## NCBI taxonomy dump directory
-# Used by the download_taxdump rule and multiqc_plots.
-# Defaults to resources/ncbi_taxdump/ inside your working directory.
+# Defaults to resources/ncbi_taxdump/ inside your BeeGees (working) directory.
 # Override this when running BeeGees as a pip-installed package or when a
 # pre-downloaded dump should be reused across runs.
 # taxdump_dir: "/path/to/writable/ncbi_taxdump"
 
 
-## Human contamination reference
-# fasta_cleaner.human_reference (above) sets the FASTA that reads are mapped
-# against in fasta_cleaner step 1. Leaving it null uses the packaged human
-# mitogenome, which removes mitochondrial contamination only. Human NUMTs
-# (nuclear copies of mitochondrial DNA) are NOT in the mitogenome, so reads
-# derived from them survive: measured on a heavily contaminated sample, a
-# mitogenome-only reference removed 85% of human reads versus 99% for a
-# mitogenome + NUMT reference. Point human_reference at a combined
-# mitogenome+NUMT FASTA for full coverage.
-#
 # The BWA index is built once per run by the bwa_index_human_ref rule and written
-# to resources/bwa_index/ in your working directory (never beside the reference,
-# which is read-only in a pip-installed package). It is deleted at the end of the
+# to resources/bwa_index/ in your BeeGees (working) directory. It is deleted at the end of the
 # run because a small reference re-indexes in about a second. Set the following
 # to true when using a genome-scale reference, where `bwa index` takes an hour or
 # more per gigabase and should be kept between runs.
@@ -122,15 +110,13 @@ taxonomic_validation:
 
 
 ## Resource allocation for each rule
-#
-# mem_mb is in MB (2048 = 2 GB) and is multiplied by the attempt number on retry.
+# mem_mb is in MB (1024 = 1 GB) and is multiplied by the attempt number on retry.
 # A rule that dies at 4096 is resubmitted with 8192, etc. Therefore, size the base 
 # value for a typical run and let retries absorb any outliers.
 #
-# PER-SAMPLE rules run once per sample (MitoGeneExtractor runs once per sample per
-# r/s combination). Their cost is fixed no matter how many samples are run, so
-# size them for your deepest single sample - a 1-sample and a 500-sample run need
-# the same values.
+# PER-SAMPLE rules (generally) run once per sample. 
+# Their cost is fixed no matter how many samples are run, so size them for your deepest 
+# single sample - a 1-sample and a 500-sample run need the same values.
 #
 # AGGREGATE rules run once for the whole run, so their memory grows with sample
 # count. The values below carry headroom to ~500 samples; the per-rule comments

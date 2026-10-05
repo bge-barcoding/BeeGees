@@ -104,7 +104,6 @@ Rank 1: No ambiguous bases anywhere in sequence
 Rank 2: Contains some ambiguous bases
 Rank 3: Other quality issues
 
-
 INPUTS
 ================
 --output-csv/-o: Path where the analysis results CSV file will be saved
@@ -176,8 +175,8 @@ Selection Flags:
 
 AUTHORS 
 ================
-Created by Dan Parsons & Ben Price @ NHMUK for the BGE consotrium
-Version: 2.4
+Created by Dan Parsons & Ben Price @ NHMUK for the BGE consortium
+Version: 2.5
 License: MIT
 """
 
@@ -429,12 +428,9 @@ def envelopes_overlap(first, second):
 
 def gap_to_span(envelope, span_lo, span_hi):
     """
-    Model positions that would become N if `envelope` were merged into the span
-    already accepted.
-
     An envelope extending the barcode leftwards or rightwards drags in every
     model position between itself and the existing span, and those positions have
-    no data, so they are filled with N. An envelope sitting INSIDE the span
+    no data, so they are filled with N's. An envelope sitting INSIDE the span
     (overlapping nothing, because overlaps are rejected before this point) fills a
     hole that is already N, so it costs nothing and the gap is 0.
 
@@ -453,30 +449,14 @@ def parse_nhmmer_result(tabular_content, seq_id):
 
     nhmmer reports one envelope per contiguous stretch of the query matching the
     profile, so a consensus with a low-coverage hole in the middle comes back as
-    two envelopes. Both are real data. This function used to keep only the
-    lowest-E-value envelope and drop the rest without a word in the log, which
-    truncated the barcode to whichever fragment happened to score best: on
-    UK016-H10 it returned 290 bases from a consensus carrying a 900-base
-    unambiguous stretch, because a 299-column envelope at E=6.1e-63 lost to a
-    291-column one at E=3.9e-73.
-
-    Selection is greedy, best E-value first. The best-scoring envelope is always
-    the anchor, so the barcode can never cover less of the model than it did
-    before. A further envelope is merged only when it
+    two envelopes. Selection is greedy, best E-value first. The best-scoring 
+    envelope is always the anchor. A further envelope is merged only when it:
 
       1. overlaps nothing already accepted, in either coordinate system, and
       2. spans more model positions than the gap it would open (the "net gain"
          test) - because that gap has no data and is filled with N.
 
     Test 2 exists because a barcode is judged on called bases, not on length.
-    UK016-C08 supplied the counter-example: a 49-position envelope at E=3.6e-06
-    sitting 182 positions from the real barcode added 48 informative bases and
-    183 N, taking the sequence from 5% ambiguous (passing) to 33% (failing).
-    Envelope score and bias cannot substitute for this test: both describe an
-    envelope in isolation and are blind to where it sits relative to the rest of
-    the barcode, which is what sets the N cost. Measured over 430 secondary
-    envelopes, the best single score threshold reproduces this rule on 77% of
-    them and the best bias/score threshold on 68%.
 
     Returns:
         A list of envelope dicts sorted by hmm_from, or None when nothing passes
@@ -693,7 +673,7 @@ def align_sequence_with_nhmmer(record, hmm_file, hmm_length, threads=1):
     """
     Process sequence by:
     1. Removing tilde characters (preserve gaps)
-    2. Replacing gap characters with N characters
+    2. Replacing gap characters with N characters (= original N's)
     3. Running nhmmer on the single N-padded sequence
     4. Constructing HMM space sequence from every accepted envelope
     5. Replacing HMM coordinate space gaps with N characters
@@ -1323,9 +1303,6 @@ def annotate_results_without_selection(all_results):
     """
     Annotate all results when selection is disabled.
     Sets all selection flags to 'no'.
-    
-    Parameters:
-        all_results (list): List of all sequence results
     """
     for result in all_results:
         result['best_sequence'] = 'no'
@@ -1336,15 +1313,12 @@ def annotate_results_without_selection(all_results):
 def clean_results_for_csv_output(all_results):
     """
     Remove sequence record objects from results before CSV output.
-    
-    Parameters:
-        all_results (list): List of all sequence results
     """
     for result in all_results:
         # Remove sequence records after FASTA files are written
         result.pop('sequence_record', None)
         result.pop('aligned_barcode_record', None)
-		
+
 def main():
     # Arg parser
     parser = argparse.ArgumentParser(description='Analyse FASTA files and select best COI-5P sequences using nhmmer-based barcode extraction.')
@@ -1422,12 +1396,22 @@ def main():
         # Initialise results list
         all_results = []
         
+        # Base dir for the 'file' column: the common path of the inputs and the output CSV.
+        # In the pipeline this is output_dir, so paths start with 03_barcode_recovery/...
+        base_dir = os.path.commonpath(
+            [os.path.abspath(p) for p in [args.output_csv, *args.input]]
+        )
+        at_fs_root = base_dir == os.path.dirname(base_dir)
+        
         # Analyse each FASTA file
         for file in args.input:
             logging.info(f"Processing file: {file}")
             results = analyse_fasta(file, args.hmm, hmm_length, args.code, args.threads)
+            abs_file = os.path.abspath(file)
+            rel_file = os.path.basename(abs_file) if at_fs_root else os.path.relpath(abs_file, base_dir)
             for seq_id, result in results.items():
                 result['seq_id'] = seq_id
+                result['file'] = rel_file
                 all_results.append(result)
 
         if args.disable_selection:
