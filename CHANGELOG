@@ -1,6 +1,6 @@
 # Changelog
 
-## v3.0.7
+## v3.0.7 (2026-10-06)
 - `structural_validation.py` now builds the barcode from every significant, 
   non-overlapping nhmmer envelope instead of only the lowest-E-value 
   (i.e. best) one. nhmmer reports one envelope per contiguous stretch matching 
@@ -45,6 +45,13 @@
 - `gene_fetch.type` is now checked at startup with the other required
   `gene_fetch` keys, so a missing value fails immediately with a clear message
   instead of a KeyError when the rule is built.
+- Declared `pyyaml` as a package dependency. The `beegees` CLI imports it to
+  read the config, but `dependencies` was empty, so `pip install beegees` gave a
+  CLI that failed at startup with `ModuleNotFoundError: No module named 'yaml'`.
+  Conda installs were unaffected, since Snakemake pulls in pyyaml.
+- Added `.github/workflows/publish.yml`: publishing a GitHub Release runs the CI
+  tests, builds and checks the sdist and wheel, smoke-tests the installed wheel,
+  and uploads to PyPI via Trusted Publishing.
 
 ## v3.0.6 (2026-09-02)
 - The bioconda recipe was missing `bbmap` (`reformat.sh`, used by the

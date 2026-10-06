@@ -23,7 +23,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
 ]
-dependencies = []
+dependencies = ["pyyaml"]  # Imported by the beegees CLI (config/sample parsing)
 
 [project.optional-dependencies]
 # Dependencies needed to run the test suite. These are the libraries the
