@@ -7,6 +7,9 @@
         <requirements>
             <requirement type="package" version="@TOOL_VERSION@">beegees</requirement>
             <requirement type="package" version="6.0.1">pyyaml</requirement>
+            <requirement type="package" version="9.4">coreutils</requirement>
+            <requirement type="package" version="1.07.1">bc</requirement>
+            <container type="docker">ghcr.io/naturalis/beegees:v1</container>
         </requirements>
     </xml>
 
