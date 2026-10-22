@@ -1,0 +1,36 @@
+name: Tag Galaxy wrapper release
+
+# When macros.xml changes on main (an autoupdate PR or a manual
+# VERSION_SUFFIX bump), tag galaxy-<TOOL_VERSION>+galaxy<VERSION_SUFFIX>
+# if that tag doesn't exist yet. The tag triggers toolshed_deploy.yml.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "beegees/galaxy/macros.xml"
+
+permissions:
+  contents: read
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      # A PAT is needed so the tag push triggers toolshed_deploy.yml;
+      # pushes made with GITHUB_TOKEN do not start other workflows.
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GALAXY_AUTOUPDATE_TOKEN }}
+
+      - name: Create and push release tag
+        run: |
+          tool_version=$(sed -n 's:.*<token name="@TOOL_VERSION@">\(.*\)</token>.*:\1:p' beegees/galaxy/macros.xml)
+          suffix=$(sed -n 's:.*<token name="@VERSION_SUFFIX@">\(.*\)</token>.*:\1:p' beegees/galaxy/macros.xml)
+          tag="galaxy-${tool_version}+galaxy${suffix}"
+          if [ -n "$(git ls-remote --tags origin "refs/tags/$tag")" ]; then
+            echo "Tag $tag already exists, nothing to release"
+            exit 0
+          fi
+          git tag "$tag"
+          git push origin "$tag"
+          echo "Pushed $tag"

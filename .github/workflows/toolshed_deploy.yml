@@ -9,7 +9,9 @@ on:
       - "beegees/galaxy/**"
       - ".github/workflows/toolshed_deploy.yml"
     tags:
-      - "v*"          # trigger on version tags, e.g. v0.6.0
+      # Galaxy wrapper releases only, e.g. galaxy-3.0.4+galaxy4.
+      # Package tags (v*) drive Bioconda and must not upload to the Tool Shed.
+      - "galaxy-*"
 
 jobs:
   lint:
@@ -52,10 +54,20 @@ jobs:
 
   shed_upload:
     needs: test
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/galaxy-')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check tag matches macros.xml version
+        run: |
+          tool_version=$(sed -n 's:.*<token name="@TOOL_VERSION@">\(.*\)</token>.*:\1:p' beegees/galaxy/macros.xml)
+          suffix=$(sed -n 's:.*<token name="@VERSION_SUFFIX@">\(.*\)</token>.*:\1:p' beegees/galaxy/macros.xml)
+          expected="galaxy-${tool_version}+galaxy${suffix}"
+          if [ "$GITHUB_REF_NAME" != "$expected" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match macros.xml ($expected)"
+            exit 1
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
