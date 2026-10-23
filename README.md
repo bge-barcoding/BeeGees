@@ -551,7 +551,6 @@ One sequence per sample (the best-ranking barcode per process ID), with a header
 ```
 
 Consolidates:
-- Read QC metrics (fastp, plus TrimGalore for PE)
 - Reference retrieval results (Gene Fetch)
 - Barcode recovery statistics (MitoGeneExtractor, fasta_cleaner)
 - Structural validation metrics
