@@ -2,6 +2,25 @@
 
 The wrapper is published to the Galaxy Tool Shed automatically. 
 
+## First-time setup
+
+1. Register an account on the [Galaxy Tool Shed](https://toolshed.g2.bx.psu.edu)
+   whose username matches `owner` in `.shed.yml`, and create an API key under
+   User → Preferences → Manage API Key.
+2. Create the empty `beegees` repository (the first release tag uploads the
+   contents):
+
+   ```bash
+   cd beegees/galaxy
+   planemo shed_create --shed_target toolshed --shed_key <API_KEY> --skip_upload .
+   ```
+
+3. Add these GitHub repository secrets:
+   - `TOOLSHED_API_KEY`: the API key from step 1.
+   - `GALAXY_AUTOUPDATE_TOKEN`: a GitHub PAT with `contents` and
+     `pull-requests` write access. Without it, the autoupdate PR won't run CI
+     and the tag won't trigger the deploy.
+
 ## Versioning
 
 The tool version is set in `macros.xml`:
@@ -41,8 +60,3 @@ Changes merged without a suffix bump are not released.
    commits. For fixes that take longer, branch off `galaxy-autoupdate`, open
    your own PR, and close the bot's PR once yours is merged.
 3. Merge to `main`. The tag and Tool Shed upload follow automatically.
-
-## Requirements
-
-The repository secret `GALAXY_AUTOUPDATE_TOKEN` (a PAT) must be set. Without
-it, the autoupdate PR won't run CI and the tag won't trigger the deploy.
