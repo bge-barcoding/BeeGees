@@ -22,3 +22,4 @@ include:
   - tool_data_table_conf.xml.sample
   - tool-data/blastdb.loc.sample
   - tool-data/beegees_blast_taxonomy.loc.sample
+  - test-data/*
