@@ -1,0 +1,73 @@
+name: Galaxy wrapper autoupdate
+
+# Polls Bioconda for a newer beegees release and opens a PR bumping the
+# Galaxy wrapper to it. The PR is merged by hand so the wrapper can be
+# checked against any new pipeline options; galaxy_tag.yml then tags it.
+on:
+  schedule:
+    - cron: "0 6 * * *"   # daily, 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  autoupdate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Compare Bioconda and wrapper versions
+        id: versions
+        run: |
+          latest=$(curl -sf https://api.anaconda.org/package/bioconda/beegees | jq -r .latest_version)
+          if [ -z "$latest" ] || [ "$latest" = "null" ]; then
+            echo "::error::Could not read latest beegees version from Bioconda"
+            exit 1
+          fi
+          current=$(sed -n 's:.*<token name="@TOOL_VERSION@">\(.*\)</token>.*:\1:p' beegees/galaxy/macros.xml)
+          echo "Bioconda: $latest, wrapper: $current"
+          newest=$(printf '%s\n%s\n' "$current" "$latest" | sort -V | tail -n 1)
+          if [ "$latest" != "$current" ] && [ "$newest" = "$latest" ]; then
+            echo "update=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+
+      - name: Bump macros.xml
+        if: steps.versions.outputs.update == 'true'
+        env:
+          LATEST: ${{ steps.versions.outputs.latest }}
+        run: |
+          sed -i \
+            -e "s:<token name=\"@TOOL_VERSION@\">[^<]*</token>:<token name=\"@TOOL_VERSION@\">${LATEST}</token>:" \
+            -e "s:<token name=\"@VERSION_SUFFIX@\">[^<]*</token>:<token name=\"@VERSION_SUFFIX@\">0</token>:" \
+            beegees/galaxy/macros.xml
+          git diff
+
+      # A PAT is needed so the PR push triggers the lint/test workflows;
+      # pushes made with GITHUB_TOKEN do not start other workflows.
+      - name: Open pull request
+        if: steps.versions.outputs.update == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GALAXY_AUTOUPDATE_TOKEN }}
+          base: main
+          branch: galaxy-autoupdate
+          delete-branch: true
+          add-paths: beegees/galaxy/macros.xml
+          commit-message: "galaxy: bump beegees to ${{ steps.versions.outputs.latest }}"
+          title: "galaxy: bump beegees ${{ steps.versions.outputs.current }} -> ${{ steps.versions.outputs.latest }}"
+          body: |
+            Bioconda has published beegees ${{ steps.versions.outputs.latest }}.
+
+            This PR sets `@TOOL_VERSION@` to ${{ steps.versions.outputs.latest }} and resets
+            `@VERSION_SUFFIX@` to 0. Merging it tags
+            `galaxy-${{ steps.versions.outputs.latest }}+galaxy0`, which uploads to the Tool Shed.
+
+            Before merging:
+            - [ ] Lint and planemo tests pass
+            - [ ] New or changed pipeline options are reflected in `beegees.xml`
+            - [ ] Test data still matches the new outputs

@@ -1,0 +1,5 @@
+# beegees_blast_taxonomy.loc — one entry per line, tab-separated: value <TAB> name <TAB> path
+# 'path' must point to the full taxonomy TSV file (not a directory).
+#
+#value	name	path
+#BOLDistilled_COI_2024_taxonomy	BOLDistilled_COI_2024_taxonomy	/srv/galaxy/tool-data/blast/BOLDistilled_COI_2024/BOLDistilled_COI_2024_TAXONOMY.tsv

@@ -1,0 +1,26 @@
+<macros>
+    <token name="@TOOL_VERSION@">3.0.4</token>
+    <token name="@VERSION_SUFFIX@">4</token>
+    <token name="@PROFILE@">23.0</token>
+
+    <xml name="requirements">
+        <requirements>
+            <requirement type="package" version="@TOOL_VERSION@">beegees</requirement>
+            <requirement type="package" version="6.0.1">pyyaml</requirement>
+            <requirement type="package" version="9.4">coreutils</requirement>
+            <requirement type="package" version="1.07.1">bc</requirement>
+            <container type="docker">ghcr.io/naturalis/beegees:v1</container>
+        </requirements>
+    </xml>
+
+    <xml name="citations">
+        <citations>
+            <citation type="bibtex">
+@software{beegees,
+  title  = {{BeeGees}: DNA barcoding from genome skims},
+  url    = {https://github.com/bge-barcoding/BeeGees}
+}</citation>
+        </citations>
+    </xml>
+
+</macros>

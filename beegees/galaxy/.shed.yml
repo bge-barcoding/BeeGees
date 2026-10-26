@@ -1,0 +1,25 @@
+name: beegees
+owner: bge-barcoding # needs to be created on toolshed (could be the name of the maintainer, Dan?)
+description: BeeGees — DNA barcoding from genome skims
+long_description: |
+  BeeGees recovers DNA barcodes from low-coverage genome skim data.
+  It wraps fastp QC, gene-fetch reference retrieval, MitoGeneExtractor barcode
+  extraction, fasta_cleaner sequence cleaning, structural validation (HMM +
+  reading-frame checks), taxonomic validation (BLASTn), and MultiQC reporting
+  into a single Snakemake pipeline.
+homepage_url: https://github.com/bge-barcoding/BeeGees
+remote_repository_url: https://github.com/bge-barcoding/BeeGees
+categories:
+  - Sequence Analysis
+  - Metagenomics
+
+# Only these files are uploaded to the Tool Shed — the rest of the repo is excluded
+include:
+  - beegees.xml
+  - macros.xml
+  - build_samples_csv.py
+  - build_config_yaml.py
+  - tool_data_table_conf.xml.sample
+  - tool-data/blastdb.loc.sample
+  - tool-data/beegees_blast_taxonomy.loc.sample
+  - test-data/*

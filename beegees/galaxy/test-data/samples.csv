@@ -1,0 +1,2 @@
+ID,forward,reverse,phylum,class,order,family,genus,species
+test,test_R1.fastq.gz,test_R2.fastq.gz,Arthropoda,Insecta,Hymenoptera,Braconidae,Chorebus,Chorebus agraules

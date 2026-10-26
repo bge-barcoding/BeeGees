@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!-- EXAMPLE — .
+     should be added into Galaxy's config/tool_data_table_conf.xml
+     (or drop it into config/tool_data_table_conf.xml.d/), then populate the
+     corresponding .loc file under tool-data/. -->
+<tables>
+    <!-- blastdb is defined by Galaxy's standard tool_data_table_conf.xml.
+         Only add this block if your Galaxy instance does not already define it. -->
+    <!-- <table name="blastdb" comment_char="#">
+        <columns>value, name, path</columns>
+        <file path="tool-data/blastdb.loc"/>
+    </table> -->
+
+    <!-- BeeGees-specific taxonomy TSV table (BOLDistilled or equivalent) -->
+    <!-- <table name="beegees_blast_taxonomy" comment_char="#">
+        <columns>value, name, path</columns>
+        <file path="tool-data/beegees_blast_taxonomy.loc"/>
+    </table> -->
+</tables>

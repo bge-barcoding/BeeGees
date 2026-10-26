@@ -1,0 +1,2 @@
+ID,input_taxa,first_matched_taxid,first_matched_taxid_rank,protein_accession,protein_length,nucleotide_accession,nucleotide_length,matched_rank,ncbi_taxonomy,reference_name,protein_reference_path,nucleotide_reference_path
+test,Chorebus agraules,3692604,species:Chorebus agraules,YP_009728660.1,511,NC_045903.1,1536,subfamily:Alysiinae,Eukaryota; Metazoa; Ecdysozoa; Arthropoda; Altocrustacea; Allotriocarida; Hexapoda; Insecta; Pterygota; Neoptera; Eumetabola; Endopterygota; Hymenoptera; Apocrita; Ichneumonoidea; Braconidae; Alysiinae; Asobara,test,test_protein.fasta,

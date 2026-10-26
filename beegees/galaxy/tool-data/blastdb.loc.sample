@@ -1,0 +1,5 @@
+# blastdb.loc — one entry per line, tab-separated: value <TAB> name <TAB> path
+# 'path' is the base name of the BLAST index (without file extensions).
+#
+#value	name	path
+#BOLDistilled_COI_2024	BOLDistilled_COI_2024	/srv/galaxy/tool-data/blast/BOLDistilled_COI_2024/BOLDistilled_COI_2024

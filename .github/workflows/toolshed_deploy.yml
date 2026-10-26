@@ -1,0 +1,87 @@
+name: Deploy to Galaxy Tool Shed
+
+on:
+  push:
+    branches:
+      - "**"
+    # GitHub ignores path filters for tag pushes, so tags always run
+    paths:
+      - "beegees/galaxy/**"
+      - ".github/workflows/toolshed_deploy.yml"
+    tags:
+      # Galaxy wrapper releases only, e.g. galaxy-3.0.4+galaxy4.
+      # Package tags (v*) drive Bioconda and must not upload to the Tool Shed.
+      - "galaxy-*"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install planemo
+        run: pip install planemo
+
+      - name: Lint tool XML
+        run: planemo lint beegees/galaxy/beegees.xml
+
+  test:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install planemo
+        run: pip install planemo
+
+      - name: Run tool tests
+        run: |
+          planemo test \
+            --galaxy_branch release_24.1 \
+            --conda_auto_install \
+            --conda_auto_init \
+            --test_data beegees/galaxy/test-data/ beegees/galaxy/beegees.xml 
+
+  shed_upload:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/galaxy-')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tag matches macros.xml version
+        run: |
+          tool_version=$(sed -n 's:.*<token name="@TOOL_VERSION@">\(.*\)</token>.*:\1:p' beegees/galaxy/macros.xml)
+          suffix=$(sed -n 's:.*<token name="@VERSION_SUFFIX@">\(.*\)</token>.*:\1:p' beegees/galaxy/macros.xml)
+          expected="galaxy-${tool_version}+galaxy${suffix}"
+          if [ "$GITHUB_REF_NAME" != "$expected" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match macros.xml ($expected)"
+            exit 1
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install planemo
+        run: pip install planemo
+
+      - name: Upload to Tool Shed
+        env:
+          TOOLSHED_API_KEY: ${{ secrets.TOOLSHED_API_KEY }}
+        run: |
+          planemo shed_upload \
+            --shed_target toolshed \
+            --shed_key "$TOOLSHED_API_KEY" \
+            beegees/galaxy/

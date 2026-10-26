@@ -8,3 +8,6 @@ build/
 *.log
 .DS_Store
 .pytest_cache/
+
+# Galaxy instance-specific data table entries (only .loc.sample files are shipped)
+beegees/galaxy/tool-data/*.loc
